@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Equipment Hours • Single File</title>
+
+<style>
+  :root {
+    --bg: #0d1421;
+    --card: rgba(20,30,50,0.85);
+    --border: #2a3a5a;
+    --text: #e0e8ff;
+    --muted: #a0b0d0;
+    --accent: #5a9fff;
+    --green: #44cc88;
+    --yellow: #ffaa44;
+    --red: #ff5555;
+    --radius: 10px;
+  }
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 16px;
+    min-height: 100vh;
+  }
+  h1, h2 { margin: 0.6em 0 0.4em; }
+  h2 { font-size: 1.4rem; color: #a0c0ff; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+  th, td {
+    padding: 9px 10px;
+    border: 1px solid rgba(255,255,255,0.07);
+    text-align: center;
+  }
+  th {
+    background: rgba(30,45,70,0.9);
+    font-weight: 600;
+    color: #c0d0ff;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .sticky-left {
+    position: sticky;
+    left: 0;
+    background: rgba(18,28,48,0.95);
+    z-index: 3;
+    text-align: left;
+    font-weight: bold;
+    min-width: 180px;
+    border-right: 1px solid rgba(255,255,255,0.12);
+  }
+  .category-header td {
+    background: rgba(40, 60, 100, 0.9);
+    font-weight: bold;
+    text-align: left;
+    padding-left: 16px;
+    font-size: 1.05rem;
+    color: #aaccff;
+  }
+  input[type="number"], input[type="text"], input[type="date"], input[type="file"], select, input[type="password"] {
+    width: 100%;
+    max-width: 220px;
+    padding: 8px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    border-radius: 6px;
+    box-sizing: border-box;
+  }
+  button {
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-danger  { background: #ff4444; color: white; }
+  .btn-copy    { background: #5566aa; color: white; font-size: 0.85rem; padding: 4px 8px; }
+  .btn-delete  { background: #992222; color: white; font-size: 0.9rem; padding: 4px 8px; margin-left: 8px; }
+  .total { font-weight: bold; color: #88ffaa; }
+  .flex { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .sheet { overflow-x: auto; max-height: 520px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 24px; }
+
+  .modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-content {
+    background: #1a2538;
+    padding: 24px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 420px;
+    border: 1px solid #3a506b;
+  }
+  .modal-header {
+    margin-bottom: 16px;
+    font-size: 1.3rem;
+  }
+  .modal-buttons {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+
+  /* ────────────────────────────────────────────────
+     LOGIN / REGISTER / RESET (Added)
+     ──────────────────────────────────────────────── */
+  #loginRoot {
+    display: none; /* toggled by JS */
+    min-height: calc(100vh - 32px);
+    align-items: center;
+    justify-content: center;
+  }
+  .login-card {
+    width: 100%;
+    max-width: 420px;
+    background: rgba(20,30,50,0.92);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 22px 18px;
+    box-shadow: 0 10px 34px rgba(0,0,0,0.55);
+  }
+  .login-title {
+    font-size: 1.5rem;
+    margin: 0 0 6px;
+    color: #cfe0ff;
+  }
+  .login-subtitle {
+    margin: 0 0 16px;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.35;
+  }
+  .login-row { margin: 12px 0; }
+  .login-row label {
+    display: block;
+    margin-bottom: 6px;
+    color: #c0d0ff;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .login-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 14px;
+  }
+  .login-error {
+    min-height: 20px;
+    margin-top: 10px;
+    color: #ffdd88;
+  }
+  .login-links {
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+  .link-btn {
+    background: transparent;
+    border: none;
+    color: #aaccff;
+    cursor: pointer;
+    padding: 0;
+    font-weight: 600;
+  }
+  .link-btn:hover { text-decoration: underline; }
+  .small-note {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 6px;
+    line-height: 1.35;
+  }
+  .auth-modal .modal-content { max-width: 520px; }
+  .auth-modal input[type="password"], .auth-modal input[type="text"] { max-width: 100%; }
+
+  /* Hide app until login */
+  #appRoot { display: none; }
+</style>
+</head>
+
+<body>
+
+<!-- ────────────────────────────────────────────────
+     LOGIN SCREEN (Added)
+     ──────────────────────────────────────────────── -->
+<div id="loginRoot" class="flex">
+  <div class="login-card">
+    <h1 class="login-title">Sign in</h1>
+    <p class="login-subtitle">
+      Please log in to access the Equipment Hours Log.
+    </p>
+
+    <div class="login-row">
+      <label for="loginUser">Username</label>
+      <input type="text" id="loginUser" autocomplete="username" placeholder="Enter username" />
+    </div>
+
+    <div class="login-row">
+      <label for="loginPass">Password</label>
+      <input type="password" id="loginPass" autocomplete="current-password" placeholder="Enter password" />
+    </div>
+
+    <div class="login-actions">
+      <button class="btn-primary" id="btnLogin" type="button">Login</button>
+    </div>
+
+    <div class="login-links">
+      <button class="link-btn" id="btnOpenRegister" type="button">Register user</button>
+      <button class="link-btn" id="btnOpenReset" type="button">Forgot password?</button>
+    </div>
+
+    <div class="small-note">
+      Offline mode: accounts are saved in this browser only. Forgot password resets using your Recovery PIN.
+    </div>
+
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
+
+<!-- ────────────────────────────────────────────────
+     REGISTER MODAL (Added)
+     ──────────────────────────────────────────────── -->
+<div id="registerModal" class="modal auth-modal">
+  <div class="modal-content">
+    <div class="modal-header">Register New User</div>
+
+    <label>Username:</label>
+    <input type="text" id="regUser" placeholder="e.g. supervisor1" style="margin:8px 0 12px;" />
+
+    <label>Password:</label>
+    <input type="password" id="regPass" placeholder="Create a password" style="margin:8px 0 12px;" />
+
+    <label>Recovery PIN (4–8 digits):</label>
+    <input type="text" id="regPin" inputmode="numeric" placeholder="Used for password reset" style="margin:8px 0 6px;" />
+
+    <div class="small-note">
+      Keep the Recovery PIN safe. It’s required to reset your password in offline mode.
+    </div>
+
+    <div id="regMsg" class="login-error" style="margin-top:12px;"></div>
+
+    <div class="modal-buttons">
+      <button id="btnCancelRegister" style="background:#444;" type="button">Cancel</button>
+      <button id="btnConfirmRegister" class="btn-primary" type="button">Create Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ────────────────────────────────────────────────
+     RESET PASSWORD MODAL (Added)
+     ──────────────────────────────────────────────── -->
+<div id="resetModal" class="modal auth-modal">
+  <div class="modal-content">
+    <div class="modal-header">Reset Password</div>
+
+    <label>Username:</label>
+    <input type="text" id="resetUser" placeholder="Enter your username" style="margin:8px 0 12px;" />
+
+    <label>Recovery PIN:</label>
+    <input type="text" id="resetPin" inputmode="numeric" placeholder="Enter your PIN" style="margin:8px 0 12px;" />
+
+    <label>New Password:</label>
+    <input type="password" id="resetNewPass" placeholder="Enter a new password" style="margin:8px 0 6px;" />
+
+    <div id="resetMsg" class="login-error" style="margin-top:12px;"></div>
+
+    <div class="modal-buttons">
+      <button id="btnCancelReset" style="background:#444;" type="button">Cancel</button>
+      <button id="btnConfirmReset" class="btn-primary" type="button">Reset</button>
+    </div>
+  </div>
+</div>
+
+<!-- ────────────────────────────────────────────────
+     ORIGINAL APP (UNCHANGED)
+     ──────────────────────────────────────────────── -->
+<div id="appRoot">
+  <div class="card">
+    <h1>Equipment Hours Log • February 2026</h1>
+    <div class="flex" style="margin:16px 0; align-items:center; flex-wrap:wrap; gap:12px;">
+      <label><strong>Work Date:</strong></label>
+      <input type="date" id="workDate" value="2026-02-26" />
+      <button class="btn btn-primary" id="btnLoadDay">Load Day</button>
+      <button class="btn btn-primary" id="btnSaveDay">Save Day</button>
+      <button class="btn btn-primary" id="btnAddEquipment">+ Add Equipment</button>
+      <button class="btn btn-primary" id="btnExportCSV">Export Monthly CSV</button>
+      <label class="btn btn-primary" style="cursor:pointer; margin:0;">
+        Import Monthly CSV
+        <input type="file" id="fileImportCSV" accept=".csv" style="display:none;" />
+      </label>
+    </div>
+    <div id="toast" style="margin:12px 0; min-height:24px; color:#ffdd88;"></div>
+
+    <!-- Daily focused view -->
+    <div class="sheet">
+      <table id="dailyTable">
+        <thead>
+          <tr>
+            <th class="sticky-left">Equipment</th>
+            <th>Date</th>
+            <th>Hr Service</th>
+            <th>Hr Service Date</th>
+            <th>Initial</th>
+            <th>Final</th>
+            <th>Worked</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="dailyBody"></tbody>
+      </table>
+    </div>
+
+    <hr style="border-color:rgba(255,255,255,0.1); margin:24px 0;" />
+
+    <!-- Month overview grid -->
+    <div class="sheet">
+      <table id="monthTable">
+        <thead id="monthHead"></thead>
+        <tbody id="monthBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Add Equipment Modal -->
+  <div id="addModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">Add New Equipment</div>
+      <label>Equipment Name:</label>
+      <input type="text" id="newEquipName" placeholder="e.g. GEN-08" style="margin:8px 0 16px;" />
+
+      <label>Category:</label>
+      <select id="newEquipCategory">
+        <option value="0">Generators</option>
+        <option value="1">Compressors &amp; Lighting</option>
+        <option value="2">Earthmoving Equipment</option>
+        <option value="3">Lifting &amp; Material Handling</option>
+      </select>
+
+      <div class="modal-buttons">
+        <button id="btnCancelAdd" style="background:#444;">Cancel</button>
+        <button id="btnConfirmAdd" class="btn-primary">Add Equipment</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ────────────────────────────────────────────────
+  // Data & Config
+  // ────────────────────────────────────────────────
+  const equipmentGroups = [
+    { name: "Generators", items: ["GEN-01", "GEN-02", "GEN-03", "GEN-04", "GEN-05", "GEN-06", "GEN-07"] },
+    { name: "Compressors & Lighting", items: ["Compressor 185 CFM", "Compressor 375 CFM", "Tower Light 4×350W"] },
+    { name: "Earthmoving Equipment", items: ["Excavator 20 Ton", "Excavator 13 Ton", "Mini Excavator 3 Ton", "Wheel Loader 930", "Backhoe Loader"] },
+    { name: "Lifting & Material Handling", items: ["Telescopic Handler 18m", "Forklift 3 Ton", "Mobile Crane 25 Ton", "Mobile Crane 50 Ton"] }
+  ];
+
+  let monthData = {}; // { "1": { "GEN-01": 8.5, "GEN-01_serviceDate": "2026-02-15", ... }, ... }
+  let currentDate = "2026-02-26";
+
+  // ────────────────────────────────────────────────
+  // Helpers
+  // ────────────────────────────────────────────────
+  function $(id) { return document.getElementById(id); }
+
+  function showToast(msg, color = "#88ffaa") {
+    const t = $("toast");
+    t.textContent = msg;
+    t.style.color = color;
+    t.style.opacity = "1";
+    setTimeout(() => t.style.opacity = "0", 3400);
+  }
+
+  function getDayNum(dateStr) {
+    return parseInt(dateStr.split("-")[2], 10);
+  }
+
+  function getFlatEquipments() {
+    return equipmentGroups.flatMap(g => g.items);
+  }
+
+  // ────────────────────────────────────────────────
+  // CSV Import / Export (MODIFIED ONLY - Excel method)
+  // ────────────────────────────────────────────────
+  function exportMonthlyCSV() {
+    const allEquip = getFlatEquipments();
+    if (allEquip.length === 0) {
+      showToast("No equipment to export", "#ffaa44");
+      return;
+    }
+
+    // Match your screenshot method: days 1..28
+    const DAYS = 28;
+
+    // Header: Equipment,1..28,Total,HourLast,ServiceDate,ServiceHours
+    let headers = ["Equipment"];
+    for (let d = 1; d <= DAYS; d++) headers.push(String(d));
+    headers.push("Total", "HourLast", "ServiceDate", "ServiceHours");
+
+    // CSV escaping helper
+    const q = (v) => {
+      const s = (v ?? "").toString();
+      return (s.includes(",") || s.includes('"') || s.includes("\n"))
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+
+    let csv = headers.join(",") + "\n";
+
+    allEquip.forEach(eq => {
+      let total = 0;
+      const row = [q(eq)];
+
+      // day values
+      for (let d = 1; d <= DAYS; d++) {
+        const val = monthData[d]?.[eq];
+        if (val === undefined || val === null || val === "") {
+          row.push("");
+        } else {
+          const num = Number(val);
+          if (isNaN(num)) row.push("");
+          else {
+            row.push(num);
+            total += num;
+          }
+        }
+      }
+
+      // Total
+      row.push(total.toFixed(1));
+
+      // HourLast (not stored in your app) -> blank
+      row.push("");
+
+      // ServiceDate: export most recent service date found across the month for that equipment
+      let latestServiceDate = "";
+      for (let d = 1; d <= 31; d++) {
+        const sd = monthData[d]?.[eq + "_serviceDate"];
+        if (sd && /^\d{4}-\d{2}-\d{2}$/.test(sd)) {
+          if (!latestServiceDate || sd > latestServiceDate) latestServiceDate = sd;
+        }
+      }
+      row.push(q(latestServiceDate));
+
+      // ServiceHours (not stored in your app) -> blank
+      row.push("");
+
+      csv += row.join(",") + "\n";
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `equipment-hours-february-2026-excel-format.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    showToast("Exported (Excel format: Equipment rows × Day columns)", "#44cc88");
+  }
+
+  function importMonthlyCSV(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+      if (lines.length < 2) {
+        showToast("Empty or invalid CSV", "#ff5555");
+        return;
+      }
+
+      // CSV split supporting quotes
+      function splitCSV(line) {
+        return line
+          .split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
+          .map(s => s.trim().replace(/^"|"$/g, "").replace(/""/g, '"'));
+      }
+
+      const headers = splitCSV(lines[0]);
+
+      if ((headers[0] || "").toLowerCase() !== "equipment") {
+        showToast("CSV must start with 'Equipment' column", "#ffaa44");
+        return;
+      }
+
+      // Identify day columns (1..31)
+      const dayCols = [];
+      for (let i = 1; i < headers.length; i++) {
+        const day = parseInt(headers[i], 10);
+        if (!isNaN(day) && day >= 1 && day <= 31) {
+          dayCols.push({ colIndex: i, day });
+        }
+      }
+
+      // Find ServiceDate column (optional)
+      const serviceDateCol = headers.findIndex(h => (h || "").toLowerCase() === "servicedate");
+
+      // Only import equipment that already exists (no other changes)
+      const existing = new Set(getFlatEquipments());
+      let importedRows = 0;
+
+      for (let r = 1; r < lines.length; r++) {
+        const cols = splitCSV(lines[r]);
+        const eq = (cols[0] || "").trim();
+        if (!eq) continue;
+        if (!existing.has(eq)) continue;
+
+        // Import day values to monthData[day][eq]
+        dayCols.forEach(({ colIndex, day }) => {
+          const raw = (cols[colIndex] ?? "").trim();
+          const num = raw === "" ? "" : Number(raw);
+
+          if (!monthData[day]) monthData[day] = {};
+
+          if (raw === "" || isNaN(num)) {
+            delete monthData[day][eq];
+          } else {
+            monthData[day][eq] = num;
+          }
+        });
+
+        // Import ServiceDate (single cell) -> store on day 1 (reference)
+        if (serviceDateCol !== -1) {
+          const sd = (cols[serviceDateCol] || "").trim();
+          if (sd && /^\d{4}-\d{2}-\d{2}$/.test(sd)) {
+            if (!monthData[1]) monthData[1] = {};
+            monthData[1][eq + "_serviceDate"] = sd;
+          }
+        }
+
+        importedRows++;
+      }
+
+      renderDailyEntry();
+      renderMonthGrid();
+      showToast(`Imported ${importedRows} rows (Excel format)`, "#44cc88");
+    };
+
+    reader.onerror = () => showToast("Error reading CSV file", "#ff5555");
+    reader.readAsText(file);
+  }
+
+  // ────────────────────────────────────────────────
+  // Render Month Grid
+  // ────────────────────────────────────────────────
+  function renderMonthGrid() {
+    const head = $("monthHead");
+    const body = $("monthBody");
+
+    let htmlHead = "<tr><th class='sticky-left'>Equipment</th>";
+    for (let d = 1; d <= 30; d++) {
+      htmlHead += `<th>${d}</th>`;
+    }
+    htmlHead += "<th class='total'>Total</th></tr>";
+    head.innerHTML = htmlHead;
+
+    let htmlBody = "";
+    equipmentGroups.forEach(group => {
+      htmlBody += `
+        <tr class="category-header">
+          <td colspan="32">${group.name}</td>
+        </tr>`;
+
+      group.items.forEach(eq => {
+        let rowTotal = 0;
+        let cells = "";
+        for (let d = 1; d <= 30; d++) {
+          const val = monthData[d]?.[eq] ?? "";
+          rowTotal += Number(val) || 0;
+          cells += `<td><input type="number" step="0.1" value="${val}" data-day="${d}" data-eq="${eq}"></td>`;
+        }
+        htmlBody += `
+          <tr>
+            <td class="sticky-left">${eq}</td>
+            ${cells}
+            <td class="total">${rowTotal.toFixed(1)}</td>
+          </tr>`;
+      });
+    });
+
+    body.innerHTML = htmlBody;
+
+    body.querySelectorAll("input").forEach(inp => {
+      inp.addEventListener("input", e => {
+        const day = e.target.dataset.day;
+        const eq = e.target.dataset.eq;
+        const val = Number(e.target.value) || 0;
+        if (!monthData[day]) monthData[day] = {};
+        monthData[day][eq] = val;
+
+        let sum = 0;
+        body.querySelectorAll(`input[data-eq="${eq}"]`).forEach(i => sum += Number(i.value) || 0);
+        e.target.parentElement.parentElement.lastElementChild.textContent = sum.toFixed(1);
+      });
+    });
+  }
+
+  // ────────────────────────────────────────────────
+  // Render Daily Entry
+  // ────────────────────────────────────────────────
+  function renderDailyEntry() {
+    const body = $("dailyBody");
+    const date = $("workDate").value || currentDate;
+    const dayNum = getDayNum(date);
+    let html = "";
+
+    equipmentGroups.forEach(group => {
+      html += `
+        <tr class="category-header">
+          <td colspan="8">${group.name}</td>
+        </tr>`;
+
+      group.items.forEach(eq => {
+        const worked = monthData[dayNum]?.[eq] ?? "";
+        const serviceDate = monthData[dayNum]?.[eq + "_serviceDate"] ?? "";
+        const initial = 0;
+        const final = Number(worked) + initial;
+        const service = "";
+
+        html += `
+          <tr data-eq="${eq}">
+            <td class="sticky-left">${eq}</td>
+            <td>${date}</td>
+            <td><input type="number" step="0.1" value="${service}" class="hr-service"></td>
+            <td><input type="date" value="${serviceDate}" class="hr-service-date"></td>
+            <td><input type="number" step="0.1" value="${initial}" class="initial" readonly></td>
+            <td><input type="number" step="0.1" value="${final}" class="final"></td>
+            <td class="worked">${Number(worked).toFixed(1)}</td>
+            <td>
+              <button class="btn-copy" data-action="copy-final">Copy Final → Initial</button>
+              <button class="btn-delete" data-action="delete-eq" title="Delete this equipment">×</button>
+            </td>
+          </tr>`;
+      });
+    });
+
+    body.innerHTML = html;
+
+    body.querySelectorAll(".final").forEach(inp => {
+      inp.addEventListener("input", e => {
+        const tr = e.target.closest("tr");
+        const init = Number(tr.querySelector(".initial").value) || 0;
+        const fin = Number(e.target.value) || 0;
+        tr.querySelector(".worked").textContent = (fin - init).toFixed(1);
+      });
+    });
+
+    body.querySelectorAll("[data-action='copy-final']").forEach(btn => {
+      btn.addEventListener("click", e => {
+        const tr = e.target.closest("tr");
+        const finalVal = tr.querySelector(".final").value;
+        tr.querySelector(".initial").value = finalVal;
+        tr.querySelector(".worked").textContent = "0.0";
+        showToast("Final copied to initial • worked reset", "#88ffaa");
+      });
+    });
+
+    body.querySelectorAll("[data-action='delete-eq']").forEach(btn => {
+      btn.addEventListener("click", e => {
+        const tr = e.target.closest("tr");
+        const eq = tr.dataset.eq;
+        if (!confirm(`Delete equipment "${eq}" completely?\nThis removes it from all days.`)) return;
+
+        for (let group of equipmentGroups) {
+          const idx = group.items.indexOf(eq);
+          if (idx !== -1) {
+            group.items.splice(idx, 1);
+            break;
+          }
+        }
+
+        Object.keys(monthData).forEach(day => {
+          if (monthData[day][eq] !== undefined) delete monthData[day][eq];
+          if (monthData[day][eq + "_serviceDate"] !== undefined) delete monthData[day][eq + "_serviceDate"];
+        });
+
+        renderDailyEntry();
+        renderMonthGrid();
+        showToast(`Equipment "${eq}" deleted`, "#ffaa44");
+      });
+    });
+  }
+
+  // ────────────────────────────────────────────────
+  // Add Equipment Modal
+  // ────────────────────────────────────────────────
+  const modal = $("addModal");
+  const btnAdd = $("btnAddEquipment");
+  const btnCancel = $("btnCancelAdd");
+  const btnConfirm = $("btnConfirmAdd");
+
+  btnAdd.onclick = () => { modal.style.display = "flex"; };
+  btnCancel.onclick = () => { modal.style.display = "none"; };
+
+  btnConfirm.onclick = () => {
+    const name = $("newEquipName").value.trim();
+    const catIdx = Number($("newEquipCategory").value);
+
+    if (!name) {
+      showToast("Please enter equipment name", "#ffaa44");
+      return;
+    }
+
+    if (getFlatEquipments().includes(name)) {
+      showToast("Equipment already exists", "#ff5555");
+      return;
+    }
+
+    equipmentGroups[catIdx].items.push(name);
+    modal.style.display = "none";
+    $("newEquipName").value = "";
+
+    renderDailyEntry();
+    renderMonthGrid();
+    showToast(`Added ${name} to ${equipmentGroups[catIdx].name}`, "#44cc88");
+  };
+
+  // ────────────────────────────────────────────────
+  // Load / Save Day
+  // ────────────────────────────────────────────────
+  $("btnLoadDay").onclick = () => {
+    currentDate = $("workDate").value;
+    renderDailyEntry();
+    showToast("Loaded day " + currentDate, "#a0c0ff");
+  };
+
+  $("btnSaveDay").onclick = () => {
+    const date = $("workDate").value;
+    const dayNum = getDayNum(date);
+    const rows = $("dailyBody").querySelectorAll("tr[data-eq]");
+
+    rows.forEach(row => {
+      const eq = row.dataset.eq;
+      const worked = Number(row.querySelector(".worked").textContent) || 0;
+      const serviceDate = row.querySelector(".hr-service-date").value || "";
+
+      if (!monthData[dayNum]) monthData[dayNum] = {};
+      monthData[dayNum][eq] = worked;
+
+      if (serviceDate) {
+        monthData[dayNum][eq + "_serviceDate"] = serviceDate;
+      } else {
+        delete monthData[dayNum][eq + "_serviceDate"];
+      }
+    });
+
+    renderMonthGrid();
+    showToast("Day saved (hours + service dates)", "#44cc88");
+  };
+
+  // ────────────────────────────────────────────────
+  // CSV Buttons (unchanged wiring)
+  // ────────────────────────────────────────────────
+  $("btnExportCSV").onclick = exportMonthlyCSV;
+
+  $("fileImportCSV").onchange = e => {
+    const file = e.target.files[0];
+    if (file) importMonthlyCSV(file);
+    e.target.value = "";
+  };
+
+  // ────────────────────────────────────────────────
+  // Init
+  // ────────────────────────────────────────────────
+  renderMonthGrid();
+  renderDailyEntry();
+  console.log("Equipment Hours Log – complete version ready");
+  </script>
+</div>
+
+<!-- ────────────────────────────────────────────────
+     AUTH SCRIPT (Added) - Login/Register/Reset
+     ──────────────────────────────────────────────── -->
+<script>
+(() => {
+  const AUTH_KEY  = "equipHoursAuth";
+  const USERS_KEY = "equipHoursUsers";
+  const DEFAULT_ADMIN = { password: "1234", pin: "0000" };
+
+  function loadUsers() {
+    try {
+      const raw = localStorage.getItem(USERS_KEY);
+      const users = raw ? JSON.parse(raw) : {};
+      if (!users.admin) {
+        users.admin = DEFAULT_ADMIN;
+        localStorage.setItem(USERS_KEY, JSON.stringify(users));
+      }
+      return users;
+    } catch {
+      const users = { admin: DEFAULT_ADMIN };
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+      return users;
+    }
+  }
+
+  function saveUsers(users) {
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  }
+
+  function setAuth(isAuthed) {
+    if (isAuthed) sessionStorage.setItem(AUTH_KEY, "1");
+    else sessionStorage.removeItem(AUTH_KEY);
+  }
+
+  function isAuthed() {
+    return sessionStorage.getItem(AUTH_KEY) === "1";
+  }
+
+  function showLogin(message = "", color = "#ffdd88") {
+    document.getElementById("loginRoot").style.display = "flex";
+    document.getElementById("appRoot").style.display = "none";
+
+    const err = document.getElementById("loginError");
+    err.textContent = message;
+    err.style.color = color;
+
+    document.getElementById("loginUser").value = "";
+    document.getElementById("loginPass").value = "";
+    setTimeout(() => document.getElementById("loginUser").focus(), 50);
+  }
+
+  function showApp() {
+    document.getElementById("loginRoot").style.display = "none";
+    document.getElementById("appRoot").style.display = "block";
+  }
+
+  // Ensure admin exists
+  loadUsers();
+
+  // Login
+  document.getElementById("btnLogin").onclick = () => {
+    const u = document.getElementById("loginUser").value.trim();
+    const p = document.getElementById("loginPass").value;
+
+    const users = loadUsers();
+    if (users[u] && users[u].password === p) {
+      setAuth(true);
+      showApp();
+    } else {
+      document.getElementById("loginError").textContent = "Invalid username or password.";
+      document.getElementById("loginError").style.color = "#ffdd88";
+    }
+  };
+
+  // Enter key
+  document.getElementById("loginPass").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") document.getElementById("btnLogin").click();
+  });
+  document.getElementById("loginUser").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") document.getElementById("btnLogin").click();
+  });
+
+  // Modals
+  const registerModal = document.getElementById("registerModal");
+  const resetModal    = document.getElementById("resetModal");
+
+  // Open Register
+  document.getElementById("btnOpenRegister").onclick = () => {
+    document.getElementById("regUser").value = "";
+    document.getElementById("regPass").value = "";
+    document.getElementById("regPin").value  = "";
+    document.getElementById("regMsg").textContent = "";
+    registerModal.style.display = "flex";
+    setTimeout(() => document.getElementById("regUser").focus(), 50);
+  };
+
+  // Close Register
+  document.getElementById("btnCancelRegister").onclick = () => {
+    registerModal.style.display = "none";
+  };
+
+  // Confirm Register
+  document.getElementById("btnConfirmRegister").onclick = () => {
+    const u = document.getElementById("regUser").value.trim();
+    const p = document.getElementById("regPass").value;
+    const pin = document.getElementById("regPin").value.trim();
+    const msg = document.getElementById("regMsg");
+
+    if (!u || u.length < 3) { msg.textContent = "Username must be at least 3 characters."; return; }
+    if (!p || p.length < 4) { msg.textContent = "Password must be at least 4 characters."; return; }
+    if (!/^\d{4,8}$/.test(pin)) { msg.textContent = "Recovery PIN must be 4–8 digits."; return; }
+
+    const users = loadUsers();
+    if (users[u]) { msg.textContent = "Username already exists."; return; }
+
+    users[u] = { password: p, pin: pin };
+    saveUsers(users);
+
+    registerModal.style.display = "none";
+    showLogin("User registered. You can login now.", "#44cc88");
+  };
+
+  // Open Reset
+  document.getElementById("btnOpenReset").onclick = () => {
+    document.getElementById("resetUser").value = "";
+    document.getElementById("resetPin").value  = "";
+    document.getElementById("resetNewPass").value = "";
+    document.getElementById("resetMsg").textContent = "";
+    resetModal.style.display = "flex";
+    setTimeout(() => document.getElementById("resetUser").focus(), 50);
+  };
+
+  // Close Reset
+  document.getElementById("btnCancelReset").onclick = () => {
+    resetModal.style.display = "none";
+  };
+
+  // Confirm Reset
+  document.getElementById("btnConfirmReset").onclick = () => {
+    const u = document.getElementById("resetUser").value.trim();
+    const pin = document.getElementById("resetPin").value.trim();
+    const newPass = document.getElementById("resetNewPass").value;
+    const msg = document.getElementById("resetMsg");
+
+    const users = loadUsers();
+    if (!users[u]) { msg.textContent = "User not found."; return; }
+    if (users[u].pin !== pin) { msg.textContent = "Invalid Recovery PIN."; return; }
+    if (!newPass || newPass.length < 4) { msg.textContent = "New password must be at least 4 characters."; return; }
+
+    users[u].password = newPass;
+    saveUsers(users);
+
+    resetModal.style.display = "none";
+    showLogin("Password reset successful. Please login.", "#44cc88");
+  };
+
+  // Click outside to close
+  window.addEventListener("click", (e) => {
+    if (e.target === registerModal) registerModal.style.display = "none";
+    if (e.target === resetModal) resetModal.style.display = "none";
+  });
+
+  // Initial view
+  if (isAuthed()) showApp();
+  else showLogin();
+})();
+</script>
+
+</body>
+</html>
