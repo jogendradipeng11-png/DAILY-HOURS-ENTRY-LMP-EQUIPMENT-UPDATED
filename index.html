@@ -361,7 +361,7 @@
       <label>Category:</label>
       <select id="newEquipCategory">
         <option value="0">Generators</option>
-        <option value="1">Compressors & Lighting</option>
+        <option value="1">Compressors &amp; Lighting</option>
       </select>
 
       <div class="modal-buttons">
@@ -384,7 +384,7 @@
    * monthData format (month-aware):
    * {
    *   "YYYY-MM": {
-   *      1: { "gen1": 5, "gen1_initial": 100, "gen1_serviceDate": "2026-02-01", ... },
+   *      1: { "gen1": 5, "gen1_initial": 100, "gen1_final": 105, "gen1_serviceDate": "2026-02-01", ... },
    *      2: { ... }
    *   },
    *   "YYYY-MM": { ... }
@@ -829,16 +829,21 @@
         const initialSaved = dayStore?.[eq + "_initial"];
         const initialUI = (initialSaved === undefined || initialSaved === null) ? "" : Number(initialSaved);
 
-        const finDefault = (Number(worked) || 0) + (Number(initialUI) || 0);
+        // Persist / restore Final (day screen)
+        const finalSaved = dayStore?.[eq + "_final"];
+        const finDefault =
+          (finalSaved === undefined || finalSaved === null)
+            ? ((Number(worked) || 0) + (Number(initialUI) || 0))
+            : Number(finalSaved);
 
         html += `
           <tr data-eq="${eq}">
             <td class="sticky-left">${eq}</td>
             <td>${date}</td>
-            <td><input type="number" step="0.1" value="${service}" class="hr-service"></td>
-            <td><input type="date" value="${serviceDate}" class="hr-service-date"></td>
-            <td><input type="number" step="0.1" value="${initialUI}" class="initial"></td>
-            <td><input type="number" step="0.1" value="${finDefault}" class="final"></td>
+            <td><input type="number" step="0.1" value="${service}" class="hr-service" data-orig="${service}"></td>
+            <td><input type="date" value="${serviceDate}" class="hr-service-date" data-orig="${serviceDate}"></td>
+            <td><input type="number" step="0.1" value="${initialUI}" class="initial" data-orig="${initialUI}"></td>
+            <td><input type="number" step="0.1" value="${finDefault}" class="final" data-orig="${finDefault}"></td>
             <td class="worked">${(Number(worked) || 0).toFixed(1)}</td>
             <td>
               <button class="btn-copy" data-action="copy-final" type="button">Copy Final → Initial</button>
@@ -849,6 +854,17 @@
     });
 
     body.innerHTML = html;
+
+    // ✅ Mark inputs as dirty ONLY when user changes them
+    body.querySelectorAll("input").forEach(inp => {
+      const mark = () => {
+        const orig = (inp.dataset.orig ?? "");
+        const now  = (inp.value ?? "");
+        inp.dataset.dirty = (String(orig) === String(now)) ? "" : "1";
+      };
+      inp.addEventListener("input", mark, { passive: true });
+      inp.addEventListener("change", mark, { passive: true });
+    });
 
     // Final input recalculates worked using initial
     body.querySelectorAll(".final").forEach(inp => {
@@ -870,19 +886,28 @@
       });
     });
 
-    // Copy Final → Initial saves only for this day
+    // Copy Final → Initial saves only for this day (unchanged behavior)
     body.querySelectorAll("[data-action='copy-final']").forEach(btn => {
       btn.addEventListener("click", e => {
         const tr = e.target.closest("tr");
         const eq = tr.dataset.eq;
 
         const finalVal = Number(tr.querySelector(".final").value) || 0;
-        tr.querySelector(".initial").value = finalVal.toFixed(1);
+
+        const initInp = tr.querySelector(".initial");
+        initInp.value = finalVal.toFixed(1);
         tr.querySelector(".worked").textContent = "0.0";
+
+        // mark dirty + update dataset
+        initInp.dataset.dirty = "1";
 
         const dateStr = $("workDate").value || currentDate;
         const { store } = getDayStore(dateStr);
         store[eq + "_initial"] = finalVal;
+
+        // after saving directly, update orig so Save buttons won't treat it as "changed again"
+        initInp.dataset.orig = initInp.value;
+        initInp.dataset.dirty = "";
 
         saveAppState(true);
         showToast("Initial saved for this day", "#88ffaa");
@@ -915,6 +940,7 @@
             delete ds[eq + "_hrService"];
             delete ds[eq + "_hourLast"];
             delete ds[eq + "_initial"];
+            delete ds[eq + "_final"];
           });
         });
 
@@ -965,7 +991,8 @@
     showToast("Loaded day " + currentDate, "#a0c0ff");
   };
 
-  // ✅ Save Day = save ONLY (NO auto-copy)
+  // ✅ Save Day = save ONLY fields modified on daily screen (NO auto-copy)
+  // ✅ BUT: worked ALWAYS saved so month sheet updates for this day
   $("btnSaveDay").onclick = () => {
     const dateStr = $("workDate").value || currentDate;
     const { store: todayStore } = getDayStore(dateStr);
@@ -975,36 +1002,72 @@
     rows.forEach(row => {
       const eq = row.dataset.eq;
 
+      const serviceInp = row.querySelector(".hr-service");
+      const serviceDateInp = row.querySelector(".hr-service-date");
+      const initInp = row.querySelector(".initial");
+      const finalInp = row.querySelector(".final");
+
+      const initDirty  = initInp?.dataset.dirty === "1";
+      const finalDirty = finalInp?.dataset.dirty === "1";
+      const svcDirty   = serviceInp?.dataset.dirty === "1";
+      const sdDirty    = serviceDateInp?.dataset.dirty === "1";
+
+      // ✅ REQUIRED: Always save worked on Save Day so month grid cell updates
       const worked = Number(row.querySelector(".worked").textContent) || 0;
-
-      const serviceDate = row.querySelector(".hr-service-date").value || "";
-      const serviceRaw  = row.querySelector(".hr-service").value;
-      const serviceNum  = serviceRaw === "" ? "" : Number(serviceRaw);
-
-      const initRaw = row.querySelector(".initial").value;
-
-      // Save worked
       todayStore[eq] = worked;
 
-      // Save initial only if entered
-      if (initRaw === "" || isNaN(Number(initRaw))) delete todayStore[eq + "_initial"];
-      else todayStore[eq + "_initial"] = Number(initRaw);
+      // Initial: save ONLY if user modified it
+      if (initDirty) {
+        const raw = initInp.value;
+        const num = raw === "" ? "" : Number(raw);
+        if (raw === "" || isNaN(num)) delete todayStore[eq + "_initial"];
+        else todayStore[eq + "_initial"] = num;
 
-      // Save service date
-      if (serviceDate) todayStore[eq + "_serviceDate"] = serviceDate;
-      else delete todayStore[eq + "_serviceDate"];
+        initInp.dataset.orig = initInp.value;
+        initInp.dataset.dirty = "";
+      }
 
-      // Save hr service
-      if (serviceRaw === "" || isNaN(serviceNum)) delete todayStore[eq + "_hrService"];
-      else todayStore[eq + "_hrService"] = serviceNum;
+      // Final: save ONLY if user modified it
+      if (finalDirty) {
+        const raw = finalInp.value;
+        const num = raw === "" ? "" : Number(raw);
+        if (raw === "" || isNaN(num)) delete todayStore[eq + "_final"];
+        else todayStore[eq + "_final"] = num;
+
+        finalInp.dataset.orig = finalInp.value;
+        finalInp.dataset.dirty = "";
+      }
+
+      // Service hours: save ONLY if user modified it
+      if (svcDirty) {
+        const raw = serviceInp.value;
+        const num = raw === "" ? "" : Number(raw);
+        if (raw === "" || isNaN(num)) delete todayStore[eq + "_hrService"];
+        else todayStore[eq + "_hrService"] = num;
+
+        serviceInp.dataset.orig = serviceInp.value;
+        serviceInp.dataset.dirty = "";
+      }
+
+      // Service date: save ONLY if user modified it
+      if (sdDirty) {
+        const sd = serviceDateInp.value || "";
+        if (sd) todayStore[eq + "_serviceDate"] = sd;
+        else delete todayStore[eq + "_serviceDate"];
+
+        serviceDateInp.dataset.orig = serviceDateInp.value;
+        serviceDateInp.dataset.dirty = "";
+      }
     });
 
+    // Month sheet should reflect today's worked values now
     renderMonthGrid();
     saveAppState(true);
     showToast("Day saved", "#44cc88");
   };
 
-  // ✅ Save (Last Modified) = save + auto-copy Final → next day Initial (if empty)
+  // ✅ Save (Last Modified) = save ONLY modified daily fields + copy ONLY Final → next day Initial (if empty)
+  // ✅ IMPORTANT: Does NOT refresh or change the month grid at all ✅
   $("btnSaveAll").onclick = () => {
     const dateStr = $("workDate").value || currentDate;
 
@@ -1017,40 +1080,76 @@
     rows.forEach(row => {
       const eq = row.dataset.eq;
 
-      const worked = Number(row.querySelector(".worked").textContent) || 0;
+      const serviceInp = row.querySelector(".hr-service");
+      const serviceDateInp = row.querySelector(".hr-service-date");
+      const initInp = row.querySelector(".initial");
+      const finalInp = row.querySelector(".final");
 
-      const serviceDate = row.querySelector(".hr-service-date").value || "";
-      const serviceRaw  = row.querySelector(".hr-service").value;
-      const serviceNum  = serviceRaw === "" ? "" : Number(serviceRaw);
+      const initDirty  = initInp?.dataset.dirty === "1";
+      const finalDirty = finalInp?.dataset.dirty === "1";
+      const svcDirty   = serviceInp?.dataset.dirty === "1";
+      const sdDirty    = serviceDateInp?.dataset.dirty === "1";
 
-      const initRaw = row.querySelector(".initial").value;
-      const finalVal = Number(row.querySelector(".final").value) || 0;
+      // Save worked ONLY if Initial or Final was modified
+      if (initDirty || finalDirty) {
+        const worked = Number(row.querySelector(".worked").textContent) || 0;
+        todayStore[eq] = worked;
+      }
 
-      // Save worked
-      todayStore[eq] = worked;
+      // Initial: save ONLY if user modified it
+      if (initDirty) {
+        const raw = initInp.value;
+        const num = raw === "" ? "" : Number(raw);
+        if (raw === "" || isNaN(num)) delete todayStore[eq + "_initial"];
+        else todayStore[eq + "_initial"] = num;
 
-      // Save initial only if entered
-      if (initRaw === "" || isNaN(Number(initRaw))) delete todayStore[eq + "_initial"];
-      else todayStore[eq + "_initial"] = Number(initRaw);
+        initInp.dataset.orig = initInp.value;
+        initInp.dataset.dirty = "";
+      }
 
-      // Save service date
-      if (serviceDate) todayStore[eq + "_serviceDate"] = serviceDate;
-      else delete todayStore[eq + "_serviceDate"];
+      // Final: save ONLY if user modified it
+      if (finalDirty) {
+        const raw = finalInp.value;
+        const num = raw === "" ? "" : Number(raw);
+        if (raw === "" || isNaN(num)) delete todayStore[eq + "_final"];
+        else todayStore[eq + "_final"] = num;
 
-      // Save hr service
-      if (serviceRaw === "" || isNaN(serviceNum)) delete todayStore[eq + "_hrService"];
-      else todayStore[eq + "_hrService"] = serviceNum;
+        finalInp.dataset.orig = finalInp.value;
+        finalInp.dataset.dirty = "";
+      }
 
-      // ✅ Auto-copy ONLY Final → Next day Initial
+      // Service hours: save ONLY if user modified it
+      if (svcDirty) {
+        const raw = serviceInp.value;
+        const num = raw === "" ? "" : Number(raw);
+        if (raw === "" || isNaN(num)) delete todayStore[eq + "_hrService"];
+        else todayStore[eq + "_hrService"] = num;
+
+        serviceInp.dataset.orig = serviceInp.value;
+        serviceInp.dataset.dirty = "";
+      }
+
+      // Service date: save ONLY if user modified it
+      if (sdDirty) {
+        const sd = serviceDateInp.value || "";
+        if (sd) todayStore[eq + "_serviceDate"] = sd;
+        else delete todayStore[eq + "_serviceDate"];
+
+        serviceDateInp.dataset.orig = serviceDateInp.value;
+        serviceDateInp.dataset.dirty = "";
+      }
+
+      // ✅ Copy ONLY Final → Next day Initial (if empty)
       // ✅ Cross month/year boundary supported
       // ✅ Do NOT overwrite if already exists
+      const finalVal = Number(finalInp.value) || 0;
       if (nextStore[eq + "_initial"] === undefined) {
         nextStore[eq + "_initial"] = finalVal;
       }
     });
 
-    renderMonthGrid();
-    saveAppState(false);
+    // ✅ Do NOT renderMonthGrid();  (no refresh / no scroll jump / no recalculation)
+    saveAppState(true);
     showToast("Saved (last modified) + copied Final → next Initial (if empty)", "#44cc88");
   };
 
@@ -1068,7 +1167,7 @@
   renderMonthGrid();
   renderDailyEntry();
   if (loaded) showToast("Loaded last modified saved data", "#a0c0ff");
-  console.log("Equipment Hours Log – Save(All) does copy Final→next Initial");
+  console.log("Equipment Hours Log – Save Day updates month sheet; Save(All) does not refresh month sheet");
   </script>
 </div>
 
