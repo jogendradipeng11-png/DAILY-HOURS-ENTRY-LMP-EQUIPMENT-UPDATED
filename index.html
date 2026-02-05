@@ -245,7 +245,8 @@
     </div>
 
     <div class="small-note">
-      Offline mode: accounts are saved in this browser only. Forgot password resets using your Recovery PIN.
+      Cloud mode: accounts and data are synced globally using Firebase.
+      Forgot password resets using your Recovery PIN.
     </div>
 
     <div id="loginError" class="login-error"></div>
@@ -267,7 +268,7 @@
     <input type="text" id="regPin" inputmode="numeric" placeholder="Used for password reset" style="margin:8px 0 6px;" />
 
     <div class="small-note">
-      Keep the Recovery PIN safe. It’s required to reset your password in offline mode.
+      Keep the Recovery PIN safe. It’s required to reset your password.
     </div>
 
     <div id="regMsg" class="login-error" style="margin-top:12px;"></div>
@@ -318,7 +319,11 @@
         Import Monthly CSV
         <input type="file" id="fileImportCSV" accept=".csv" style="display:none;" />
       </label>
+
+      <!-- ✅ Sign Out -->
+      <button class="btn btn-danger" id="btnSignOut" type="button">Sign out</button>
     </div>
+
     <div id="toast" style="margin:12px 0; min-height:24px; color:#ffdd88;"></div>
 
     <!-- Daily view -->
@@ -371,6 +376,53 @@
     </div>
   </div>
 
+  <!-- ────────────────────────────────────────────────
+       FIREBASE LOADER (Module CDN)
+       ──────────────────────────────────────────────── -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+    import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+    import {
+      getAuth, onAuthStateChanged,
+      signInWithEmailAndPassword, createUserWithEmailAndPassword,
+      signOut, setPersistence,
+      browserLocalPersistence, browserSessionPersistence
+    } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-functions.js";
+
+    // ✅ REPLACE WITH YOUR FIREBASE CONFIG (include databaseURL)
+    const firebaseConfig = {
+  apiKey: "AIzaSyBgQbh6pp78iwXpH9qdQk1viEgy9zAmX6A",
+  authDomain: "equipment-hours-lmp.firebaseapp.com",
+  databaseURL: "https://equipment-hours-lmp-default-rtdb.firebaseio.com",
+  projectId: "equipment-hours-lmp",
+  storageBucket: "equipment-hours-lmp.firebasestorage.app",
+  messagingSenderId: "414868275365",
+  appId: "1:414868275365:web:467a98dc301e3585e98d4c",
+  measurementId: "G-EDRB8HRECD"
+};
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+    const functions = getFunctions(app);
+
+    // Expose for non-module scripts
+    window.__fb = {
+      app, auth, db, functions,
+      api: {
+        ref, get, set,
+        onAuthStateChanged,
+        signInWithEmailAndPassword, createUserWithEmailAndPassword,
+        signOut,
+        setPersistence, browserLocalPersistence, browserSessionPersistence,
+        httpsCallable
+      }
+    };
+
+    window.dispatchEvent(new Event("firebase-ready"));
+  </script>
+
   <script>
   // ────────────────────────────────────────────────
   // Data & Config
@@ -394,22 +446,49 @@
   let currentDate = "2026-02-26";
 
   // ────────────────────────────────────────────────
-  // Persist App State
+  // Persist App State (Firebase RTDB)
   // ────────────────────────────────────────────────
-  const APP_STATE_KEY = "equipHoursAppState_v2_monthAware";
+  const CLOUD_STATE_ROOT = "equipHoursState";
+  let _saveTimer = null;
 
-  function saveAppState(silent = false) {
-    const state = { equipmentGroups, monthData, currentDate };
-    localStorage.setItem(APP_STATE_KEY, JSON.stringify(state));
-    if (!silent) showToast("Saved last modified data (equipment + hours)", "#44cc88");
+  function fb() { return window.__fb; }
+
+  function getUid() {
+    return fb()?.auth?.currentUser?.uid || null;
   }
 
-  function loadAppState() {
-    try {
-      const raw = localStorage.getItem(APP_STATE_KEY);
-      if (!raw) return false;
+  function cloudStateRef() {
+    const uid = getUid();
+    if (!uid) return null;
+    return fb().api.ref(fb().db, `${CLOUD_STATE_ROOT}/${uid}`);
+  }
 
-      const state = JSON.parse(raw);
+  function saveAppState(silent = false) {
+    const r = cloudStateRef();
+    if (!r) {
+      if (!silent) showToast("Not signed in", "#ffaa44");
+      return;
+    }
+
+    const state = { equipmentGroups, monthData, currentDate, updatedAt: Date.now() };
+
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(() => {
+      fb().api.set(r, state)
+        .then(() => { if (!silent) showToast("Saved to cloud", "#44cc88"); })
+        .catch(() => { if (!silent) showToast("Cloud save failed", "#ff5555"); });
+    }, 250);
+  }
+
+  async function loadAppState() {
+    const r = cloudStateRef();
+    if (!r) return false;
+
+    try {
+      const snap = await fb().api.get(r);
+      if (!snap.exists()) return false;
+
+      const state = snap.val();
       if (!state || typeof state !== "object") return false;
       if (!Array.isArray(state.equipmentGroups) || typeof state.monthData !== "object") return false;
 
@@ -479,7 +558,7 @@
   }
 
   // ────────────────────────────────────────────────
-  // Month-aware storage helpers (supports month boundary)
+  // Month-aware storage helpers
   // ────────────────────────────────────────────────
   function monthKeyFromDate(dateStr) {
     return (dateStr || "").slice(0, 7);
@@ -825,11 +904,9 @@
           mStore?.[1]?.[eq + "_hrService"] ??
           "";
 
-        // show blank if not saved
         const initialSaved = dayStore?.[eq + "_initial"];
         const initialUI = (initialSaved === undefined || initialSaved === null) ? "" : Number(initialSaved);
 
-        // Persist / restore Final (day screen)
         const finalSaved = dayStore?.[eq + "_final"];
         const finDefault =
           (finalSaved === undefined || finalSaved === null)
@@ -855,7 +932,7 @@
 
     body.innerHTML = html;
 
-    // ✅ Mark inputs as dirty ONLY when user changes them
+    // Mark inputs dirty only when changed by user
     body.querySelectorAll("input").forEach(inp => {
       const mark = () => {
         const orig = (inp.dataset.orig ?? "");
@@ -886,7 +963,7 @@
       });
     });
 
-    // Copy Final → Initial saves only for this day (unchanged behavior)
+    // Copy Final → Initial saves only for this day
     body.querySelectorAll("[data-action='copy-final']").forEach(btn => {
       btn.addEventListener("click", e => {
         const tr = e.target.closest("tr");
@@ -898,14 +975,12 @@
         initInp.value = finalVal.toFixed(1);
         tr.querySelector(".worked").textContent = "0.0";
 
-        // mark dirty + update dataset
         initInp.dataset.dirty = "1";
 
         const dateStr = $("workDate").value || currentDate;
         const { store } = getDayStore(dateStr);
         store[eq + "_initial"] = finalVal;
 
-        // after saving directly, update orig so Save buttons won't treat it as "changed again"
         initInp.dataset.orig = initInp.value;
         initInp.dataset.dirty = "";
 
@@ -991,8 +1066,6 @@
     showToast("Loaded day " + currentDate, "#a0c0ff");
   };
 
-  // ✅ Save Day = save ONLY fields modified on daily screen (NO auto-copy)
-  // ✅ BUT: worked ALWAYS saved so month sheet updates for this day
   $("btnSaveDay").onclick = () => {
     const dateStr = $("workDate").value || currentDate;
     const { store: todayStore } = getDayStore(dateStr);
@@ -1012,11 +1085,10 @@
       const svcDirty   = serviceInp?.dataset.dirty === "1";
       const sdDirty    = serviceDateInp?.dataset.dirty === "1";
 
-      // ✅ REQUIRED: Always save worked on Save Day so month grid cell updates
+      // Always save worked so month grid updates
       const worked = Number(row.querySelector(".worked").textContent) || 0;
       todayStore[eq] = worked;
 
-      // Initial: save ONLY if user modified it
       if (initDirty) {
         const raw = initInp.value;
         const num = raw === "" ? "" : Number(raw);
@@ -1027,7 +1099,6 @@
         initInp.dataset.dirty = "";
       }
 
-      // Final: save ONLY if user modified it
       if (finalDirty) {
         const raw = finalInp.value;
         const num = raw === "" ? "" : Number(raw);
@@ -1038,7 +1109,6 @@
         finalInp.dataset.dirty = "";
       }
 
-      // Service hours: save ONLY if user modified it
       if (svcDirty) {
         const raw = serviceInp.value;
         const num = raw === "" ? "" : Number(raw);
@@ -1049,7 +1119,6 @@
         serviceInp.dataset.dirty = "";
       }
 
-      // Service date: save ONLY if user modified it
       if (sdDirty) {
         const sd = serviceDateInp.value || "";
         if (sd) todayStore[eq + "_serviceDate"] = sd;
@@ -1060,14 +1129,11 @@
       }
     });
 
-    // Month sheet should reflect today's worked values now
     renderMonthGrid();
     saveAppState(true);
     showToast("Day saved", "#44cc88");
   };
 
-  // ✅ Save (Last Modified) = save ONLY modified daily fields + copy ONLY Final → next day Initial (if empty)
-  // ✅ IMPORTANT: Does NOT refresh or change the month grid at all ✅
   $("btnSaveAll").onclick = () => {
     const dateStr = $("workDate").value || currentDate;
 
@@ -1090,13 +1156,11 @@
       const svcDirty   = serviceInp?.dataset.dirty === "1";
       const sdDirty    = serviceDateInp?.dataset.dirty === "1";
 
-      // Save worked ONLY if Initial or Final was modified
       if (initDirty || finalDirty) {
         const worked = Number(row.querySelector(".worked").textContent) || 0;
         todayStore[eq] = worked;
       }
 
-      // Initial: save ONLY if user modified it
       if (initDirty) {
         const raw = initInp.value;
         const num = raw === "" ? "" : Number(raw);
@@ -1107,7 +1171,6 @@
         initInp.dataset.dirty = "";
       }
 
-      // Final: save ONLY if user modified it
       if (finalDirty) {
         const raw = finalInp.value;
         const num = raw === "" ? "" : Number(raw);
@@ -1118,7 +1181,6 @@
         finalInp.dataset.dirty = "";
       }
 
-      // Service hours: save ONLY if user modified it
       if (svcDirty) {
         const raw = serviceInp.value;
         const num = raw === "" ? "" : Number(raw);
@@ -1129,7 +1191,6 @@
         serviceInp.dataset.dirty = "";
       }
 
-      // Service date: save ONLY if user modified it
       if (sdDirty) {
         const sd = serviceDateInp.value || "";
         if (sd) todayStore[eq + "_serviceDate"] = sd;
@@ -1139,88 +1200,56 @@
         serviceDateInp.dataset.dirty = "";
       }
 
-      // ✅ Copy ONLY Final → Next day Initial (if empty)
-      // ✅ Cross month/year boundary supported
-      // ✅ Do NOT overwrite if already exists
+      // Copy Final → Next day Initial (if empty)
       const finalVal = Number(finalInp.value) || 0;
       if (nextStore[eq + "_initial"] === undefined) {
         nextStore[eq + "_initial"] = finalVal;
       }
     });
 
-    // ✅ Do NOT renderMonthGrid();  (no refresh / no scroll jump / no recalculation)
     saveAppState(true);
     showToast("Saved (last modified) + copied Final → next Initial (if empty)", "#44cc88");
   };
 
   // CSV Buttons
   $("btnExportCSV").onclick = exportMonthlyCSV;
-
   $("fileImportCSV").onchange = e => {
     const file = e.target.files[0];
     if (file) importMonthlyCSV(file);
     e.target.value = "";
   };
 
-  // Init
-  const loaded = loadAppState();
+  // Sign out
+  $("btnSignOut").onclick = () => {
+    if (window.__fb?.api?.signOut) window.__fb.api.signOut(window.__fb.auth);
+  };
+
+  // Base render (before login)
   renderMonthGrid();
   renderDailyEntry();
-  if (loaded) showToast("Loaded last modified saved data", "#a0c0ff");
-  console.log("Equipment Hours Log – Save Day updates month sheet; Save(All) does not refresh month sheet");
+
+  // Load cloud data after login change
+  window.addEventListener("equipHours:userChanged", async () => {
+    const ok = await loadAppState();
+    renderMonthGrid();
+    renderDailyEntry();
+    showToast(ok ? "Loaded cloud data" : "No cloud data yet (using defaults)", ok ? "#a0c0ff" : "#ffaa44");
+  });
+
   </script>
 </div>
 
-<!-- AUTH SCRIPT -->
+<!-- AUTH SCRIPT (Firebase Auth + PIN stored in RTDB) -->
 <script>
 (() => {
-  const AUTH_KEY  = "equipHoursAuth";
-  const USERS_KEY = "equipHoursUsers";
-  const DEFAULT_ADMIN = { password: "1234", pin: "0000" };
-
-  // ✅ Remember me keys (save password behavior = stay logged in)
-  const REMEMBER_KEY = "equipHoursRemember";
   const REMEMBER_USER_KEY = "equipHoursRememberUser";
 
-  function loadUsers() {
-    try {
-      const raw = localStorage.getItem(USERS_KEY);
-      const users = raw ? JSON.parse(raw) : {};
-      if (!users.admin) {
-        users.admin = DEFAULT_ADMIN;
-        localStorage.setItem(USERS_KEY, JSON.stringify(users));
-      }
-      return users;
-    } catch {
-      const users = { admin: DEFAULT_ADMIN };
-      localStorage.setItem(USERS_KEY, JSON.stringify(users));
-      return users;
-    }
-  }
+  function fb() { return window.__fb; }
+  function api() { return window.__fb.api; }
 
-  function saveUsers(users) {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  }
-
-  function setAuth(isAuthed, remember = false, username = "") {
-    if (isAuthed) {
-      sessionStorage.setItem(AUTH_KEY, "1");
-      if (remember) {
-        localStorage.setItem(REMEMBER_KEY, "1");
-        localStorage.setItem(REMEMBER_USER_KEY, username || "");
-      } else {
-        localStorage.removeItem(REMEMBER_KEY);
-        localStorage.removeItem(REMEMBER_USER_KEY);
-      }
-    } else {
-      sessionStorage.removeItem(AUTH_KEY);
-      localStorage.removeItem(REMEMBER_KEY);
-      localStorage.removeItem(REMEMBER_USER_KEY);
-    }
-  }
-
-  function isAuthed() {
-    return sessionStorage.getItem(AUTH_KEY) === "1" || localStorage.getItem(REMEMBER_KEY) === "1";
+  function unameToEmail(username) {
+    const safe = (username || "").trim().toLowerCase().replace(/[^a-z0-9._-]/g, "_");
+    return `${safe}@equip-hours.local`;
   }
 
   function showLogin(message = "", color = "#ffdd88") {
@@ -1232,10 +1261,9 @@
     err.style.color = color;
 
     const rememberedUser = localStorage.getItem(REMEMBER_USER_KEY) || "";
-
     document.getElementById("loginUser").value = rememberedUser;
     document.getElementById("loginPass").value = "";
-    document.getElementById("rememberMe").checked = localStorage.getItem(REMEMBER_KEY) === "1";
+    document.getElementById("rememberMe").checked = !!rememberedUser;
 
     setTimeout(() => document.getElementById("loginUser").focus(), 50);
   }
@@ -1243,106 +1271,138 @@
   function showApp() {
     document.getElementById("loginRoot").style.display = "none";
     document.getElementById("appRoot").style.display = "block";
+    window.dispatchEvent(new CustomEvent("equipHours:userChanged"));
   }
 
-  loadUsers();
+  function initAuth() {
+    api().onAuthStateChanged(fb().auth, (user) => {
+      if (user) showApp();
+      else showLogin();
+    });
 
-  document.getElementById("btnLogin").onclick = () => {
-    const u = document.getElementById("loginUser").value.trim();
-    const p = document.getElementById("loginPass").value;
-    const remember = document.getElementById("rememberMe")?.checked;
+    // LOGIN
+    document.getElementById("btnLogin").onclick = async () => {
+      const u = document.getElementById("loginUser").value.trim();
+      const p = document.getElementById("loginPass").value;
+      const remember = document.getElementById("rememberMe")?.checked;
 
-    const users = loadUsers();
-    if (users[u] && users[u].password === p) {
-      setAuth(true, !!remember, u);
-      showApp();
-    } else {
-      document.getElementById("loginError").textContent = "Invalid username or password.";
-      document.getElementById("loginError").style.color = "#ffdd88";
-    }
-  };
+      const usersMsg = document.getElementById("loginError");
+      usersMsg.textContent = "";
 
-  document.getElementById("loginPass").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") document.getElementById("btnLogin").click();
-  });
-  document.getElementById("loginUser").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") document.getElementById("btnLogin").click();
-  });
+      if (!u || !p) {
+        usersMsg.textContent = "Enter username and password.";
+        usersMsg.style.color = "#ffdd88";
+        return;
+      }
 
-  const registerModal = document.getElementById("registerModal");
-  const resetModal    = document.getElementById("resetModal");
+      try {
+        await api().setPersistence(
+          fb().auth,
+          remember ? api().browserLocalPersistence : api().browserSessionPersistence
+        );
 
-  document.getElementById("btnOpenRegister").onclick = () => {
-    document.getElementById("regUser").value = "";
-    document.getElementById("regPass").value = "";
-    document.getElementById("regPin").value  = "";
-    document.getElementById("regMsg").textContent = "";
-    registerModal.style.display = "flex";
-    setTimeout(() => document.getElementById("regUser").focus(), 50);
-  };
+        const email = unameToEmail(u);
+        await api().signInWithEmailAndPassword(fb().auth, email, p);
 
-  document.getElementById("btnCancelRegister").onclick = () => {
-    registerModal.style.display = "none";
-  };
+        if (remember) localStorage.setItem(REMEMBER_USER_KEY, u);
+        else localStorage.removeItem(REMEMBER_USER_KEY);
 
-  document.getElementById("btnConfirmRegister").onclick = () => {
-    const u = document.getElementById("regUser").value.trim();
-    const p = document.getElementById("regPass").value;
-    const pin = document.getElementById("regPin").value.trim();
-    const msg = document.getElementById("regMsg");
+        showApp();
+      } catch {
+        usersMsg.textContent = "Invalid username or password.";
+        usersMsg.style.color = "#ffdd88";
+      }
+    };
 
-    if (!u || u.length < 3) { msg.textContent = "Username must be at least 3 characters."; return; }
-    if (!p || p.length < 4) { msg.textContent = "Password must be at least 4 characters."; return; }
-    if (!/^\d{4,8}$/.test(pin)) { msg.textContent = "Recovery PIN must be 4–8 digits."; return; }
+    document.getElementById("loginPass").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("btnLogin").click();
+    });
+    document.getElementById("loginUser").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("btnLogin").click();
+    });
 
-    const users = loadUsers();
-    if (users[u]) { msg.textContent = "Username already exists."; return; }
+    // REGISTER
+    const registerModal = document.getElementById("registerModal");
+    document.getElementById("btnOpenRegister").onclick = () => {
+      document.getElementById("regUser").value = "";
+      document.getElementById("regPass").value = "";
+      document.getElementById("regPin").value  = "";
+      document.getElementById("regMsg").textContent = "";
+      registerModal.style.display = "flex";
+      setTimeout(() => document.getElementById("regUser").focus(), 50);
+    };
+    document.getElementById("btnCancelRegister").onclick = () => registerModal.style.display = "none";
 
-    users[u] = { password: p, pin: pin };
-    saveUsers(users);
+    document.getElementById("btnConfirmRegister").onclick = async () => {
+      const u = document.getElementById("regUser").value.trim();
+      const p = document.getElementById("regPass").value;
+      const pin = document.getElementById("regPin").value.trim();
+      const msg = document.getElementById("regMsg");
 
-    registerModal.style.display = "none";
-    showLogin("User registered. You can login now.", "#44cc88");
-  };
+      if (!u || u.length < 3) { msg.textContent = "Username must be at least 3 characters."; return; }
+      if (!p || p.length < 4) { msg.textContent = "Password must be at least 4 characters."; return; }
+      if (!/^\d{4,8}$/.test(pin)) { msg.textContent = "Recovery PIN must be 4–8 digits."; return; }
 
-  document.getElementById("btnOpenReset").onclick = () => {
-    document.getElementById("resetUser").value = "";
-    document.getElementById("resetPin").value  = "";
-    document.getElementById("resetNewPass").value = "";
-    document.getElementById("resetMsg").textContent = "";
-    resetModal.style.display = "flex";
-    setTimeout(() => document.getElementById("resetUser").focus(), 50);
-  };
+      try {
+        const email = unameToEmail(u);
+        const cred = await api().createUserWithEmailAndPassword(fb().auth, email, p);
+        const uid = cred.user.uid;
 
-  document.getElementById("btnCancelReset").onclick = () => {
-    resetModal.style.display = "none";
-  };
+        // store pin in RTDB under /equipHoursPins/<uid>
+        await api().set(api().ref(fb().db, `equipHoursPins/${uid}`), { pin });
 
-  document.getElementById("btnConfirmReset").onclick = () => {
-    const u = document.getElementById("resetUser").value.trim();
-    const pin = document.getElementById("resetPin").value.trim();
-    const newPass = document.getElementById("resetNewPass").value;
-    const msg = document.getElementById("resetMsg");
+        // sign out after register (same behavior as your old offline flow)
+        await api().signOut(fb().auth);
 
-    const users = loadUsers();
-    if (!users[u]) { msg.textContent = "User not found."; return; }
-    if (users[u].pin !== pin) { msg.textContent = "Invalid Recovery PIN."; return; }
-    if (!newPass || newPass.length < 4) { msg.textContent = "New password must be at least 4 characters."; return; }
+        registerModal.style.display = "none";
+        showLogin("User registered. You can login now.", "#44cc88");
+      } catch {
+        msg.textContent = "Registration failed (user may already exist).";
+      }
+    };
 
-    users[u].password = newPass;
-    saveUsers(users);
+    // RESET (uses Cloud Function resetPasswordWithPin)
+    const resetModal = document.getElementById("resetModal");
+    document.getElementById("btnOpenReset").onclick = () => {
+      document.getElementById("resetUser").value = "";
+      document.getElementById("resetPin").value  = "";
+      document.getElementById("resetNewPass").value = "";
+      document.getElementById("resetMsg").textContent = "";
+      resetModal.style.display = "flex";
+      setTimeout(() => document.getElementById("resetUser").focus(), 50);
+    };
+    document.getElementById("btnCancelReset").onclick = () => resetModal.style.display = "none";
 
-    resetModal.style.display = "none";
-    showLogin("Password reset successful. Please login.", "#44cc88");
-  };
+    document.getElementById("btnConfirmReset").onclick = async () => {
+      const u = document.getElementById("resetUser").value.trim();
+      const pin = document.getElementById("resetPin").value.trim();
+      const newPass = document.getElementById("resetNewPass").value;
+      const msg = document.getElementById("resetMsg");
 
-  window.addEventListener("click", (e) => {
-    if (e.target === registerModal) registerModal.style.display = "none";
-    if (e.target === resetModal) resetModal.style.display = "none";
-  });
+      if (!u) { msg.textContent = "User not found."; return; }
+      if (!/^\d{4,8}$/.test(pin)) { msg.textContent = "Invalid Recovery PIN."; return; }
+      if (!newPass || newPass.length < 4) { msg.textContent = "New password must be at least 4 characters."; return; }
 
-  if (isAuthed()) showApp();
-  else showLogin();
+      try {
+        const fn = api().httpsCallable(fb().functions, "resetPasswordWithPin");
+        await fn({ username: u, pin, newPassword: newPass });
+
+        resetModal.style.display = "none";
+        showLogin("Password reset successful. Please login.", "#44cc88");
+      } catch {
+        msg.textContent = "Reset failed. Check username/PIN.";
+      }
+    };
+
+    window.addEventListener("click", (e) => {
+      if (e.target === registerModal) registerModal.style.display = "none";
+      if (e.target === resetModal) resetModal.style.display = "none";
+    });
+  }
+
+  // Wait Firebase SDK ready
+  if (window.__fb && window.__fb.api) initAuth();
+  else window.addEventListener("firebase-ready", initAuth, { once: true });
 })();
 </script>
 
