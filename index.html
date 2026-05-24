@@ -237,6 +237,9 @@
 
     <div class="login-actions">
       <button class="btn-primary" id="btnLogin" type="button">Login</button>
+<button class="btn-primary" id="btnGoogleLogin" type="button" style="width:100%;">
+  Sign in with Google
+</button>
     </div>
 
     <div class="login-links">
@@ -383,11 +386,12 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
     import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
     import {
-      getAuth, onAuthStateChanged,
-      signInWithEmailAndPassword, createUserWithEmailAndPassword,
-      signOut, setPersistence,
-      browserLocalPersistence, browserSessionPersistence
-    } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+  getAuth, onAuthStateChanged,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  signOut, setPersistence,
+  browserLocalPersistence, browserSessionPersistence,
+  GoogleAuthProvider, signInWithPopup   // ✅ ADD THIS
+} from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
     import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-functions.js";
 
     // ✅ REPLACE WITH YOUR FIREBASE CONFIG (include databaseURL)
@@ -411,13 +415,15 @@
     window.__fb = {
       app, auth, db, functions,
       api: {
-        ref, get, set,
-        onAuthStateChanged,
-        signInWithEmailAndPassword, createUserWithEmailAndPassword,
-        signOut,
-        setPersistence, browserLocalPersistence, browserSessionPersistence,
-        httpsCallable
-      }
+  ref, get, set,
+  onAuthStateChanged,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  signOut,
+  setPersistence, browserLocalPersistence, browserSessionPersistence,
+  httpsCallable,
+  GoogleAuthProvider,      // ✅
+  signInWithPopup          // ✅
+}
     };
 
     window.dispatchEvent(new Event("firebase-ready"));
@@ -1241,6 +1247,20 @@
 
 <!-- AUTH SCRIPT (Firebase Auth + PIN stored in RTDB) -->
 <script>
+// ✅ GOOGLE LOGIN
+document.getElementById("btnGoogleLogin").onclick = async () => {
+    const msg = document.getElementById("loginError");
+    msg.textContent = "";
+
+    try {
+        const provider = new api().GoogleAuthProvider();
+        await api().signInWithPopup(fb().auth, provider);
+        showApp();
+    } catch (err) {
+        msg.textContent = "Google sign-in failed.";
+        msg.style.color = "#ff5555";
+    }
+};
 (() => {
   const REMEMBER_USER_KEY = "equipHoursRememberUser";
 
