@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Equipment Hours • Realtime</title>
+<title>Equipment Hours • Realtime Cloud</title>
 <style>
   :root {
     --bg: #0d1421; --card: rgba(20,30,50,0.9); --border: #2a3a5a;
@@ -24,27 +24,33 @@
   .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#44cc88; color:white; padding:12px 24px; border-radius:8px; display:none; z-index:1000; }
 </style>
 
+<!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
+<!-- ==================== IMPROVED LOGIN SCREEN ==================== -->
 <div id="loginScreen">
   <div class="card">
     <h1>Equipment Hours Log</h1>
     <p>Sign in to access realtime data</p>
+
     <button class="btn-google" id="googleBtn">
       <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" width="24" height="24">
       Continue with Google
     </button>
+
     <div style="text-align:center; margin:20px 0; color:#888;">— OR —</div>
+
     <input type="email" id="email" placeholder="Email" />
     <input type="password" id="password" placeholder="Password" />
+
     <button class="btn-primary" id="loginBtn">Login</button>
     <button class="link" id="showRegister">Create new account</button>
     <button class="link" id="forgotPass">Forgot Password?</button>
+
     <div id="loginError" class="error"></div>
   </div>
 </div>
@@ -61,7 +67,7 @@
   </div>
 </div>
 
-<!-- APP -->
+<!-- APP (Unchanged - Same as your original) -->
 <div id="appRoot" style="display:none;">
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
@@ -97,7 +103,7 @@
 <div id="toast" class="toast">Saved Realtime</div>
 
 <script>
-// ==================== FIREBASE CONFIG ====================
+// ==================== YOUR FIREBASE CONFIG ====================
 const firebaseConfig = {
   apiKey: "AIzaSyBgQbh6pp78iwXpH9qdQk1viEgy9zAmX6A",
   authDomain: "equipment-hours-lmp.firebaseapp.com",
@@ -105,7 +111,8 @@ const firebaseConfig = {
   projectId: "equipment-hours-lmp",
   storageBucket: "equipment-hours-lmp.firebasestorage.app",
   messagingSenderId: "414868275365",
-  appId: "1:414868275365:web:467a98dc301e3585e98d4c"
+  appId: "1:414868275365:web:467a98dc301e3585e98d4c",
+  measurementId: "G-EDRB8HRECD"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -115,7 +122,7 @@ const db = firebase.database();
 let currentUserUID = null;
 let equipmentList = ["gen1", "gen2", "gen3", "gen4", "gen5", "comp1", "tower1"];
 
-// Auth State
+// ==================== Auth State ====================
 auth.onAuthStateChanged(user => {
   if (user) {
     if (!user.emailVerified) {
@@ -136,7 +143,7 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-// Login / Register / Google
+// ==================== Login / Register (Improved) ====================
 document.getElementById('loginBtn').onclick = () => {
   const email = document.getElementById('email').value.trim();
   const pass = document.getElementById('password').value;
@@ -170,7 +177,7 @@ document.getElementById('registerBtn').onclick = () => {
   auth.createUserWithEmailAndPassword(email, pass)
     .then(userCredential => userCredential.user.sendEmailVerification())
     .then(() => {
-      alert("Account created! Please verify your email.");
+      alert("Account created successfully! Please check your email to verify.");
       document.getElementById('registerScreen').style.display = 'none';
       document.getElementById('loginScreen').style.display = 'block';
     })
@@ -179,13 +186,18 @@ document.getElementById('registerBtn').onclick = () => {
 
 document.getElementById('forgotPass').onclick = () => {
   const email = document.getElementById('email').value.trim();
-  if (email) auth.sendPasswordResetEmail(email).then(() => alert("Reset link sent!"));
+  if (email) {
+    auth.sendPasswordResetEmail(email).then(() => alert("Password reset link sent to your email!"));
+  }
 };
 
 document.getElementById('logoutBtn').onclick = () => auth.signOut();
 
-// Database
-const getUserRef = (date) => db.ref(`equipmentHours/${currentUserUID}/${date.substring(0,7)}/${date}`);
+// ==================== YOUR ORIGINAL DATA LOGIC (Unchanged) ====================
+const getUserRef = (date) => {
+  const monthKey = date.substring(0, 7);
+  return db.ref(`equipmentHours/${currentUserUID}/${monthKey}/${date}`);
+};
 
 function saveDayData() {
   if (!currentUserUID) return;
@@ -240,17 +252,20 @@ function renderDailyEntry() {
       <td class="worked">0.0</td>
     `;
     tbody.appendChild(row);
-
     const init = row.querySelector('.initial');
     const fin = row.querySelector('.final');
     const worked = row.querySelector('.worked');
-    const update = () => worked.textContent = ((parseFloat(fin.value)||0) - (parseFloat(init.value)||0)).toFixed(1);
-    init.addEventListener('input', update);
-    fin.addEventListener('input', update);
+    const updateWorked = () => {
+      const diff = (parseFloat(fin.value) || 0) - (parseFloat(init.value) || 0);
+      worked.textContent = diff.toFixed(1);
+    };
+    init.addEventListener('input', updateWorked);
+    fin.addEventListener('input', updateWorked);
   });
   setupRealtimeListener();
 }
 
+// Button Events
 document.getElementById('btnSaveDay').onclick = saveDayData;
 document.getElementById('btnLoadDay').onclick = renderDailyEntry;
 document.getElementById('btnAddEquipment').onclick = () => {
@@ -269,7 +284,9 @@ function showToast(msg) {
   setTimeout(() => toast.style.display = 'none', 2200);
 }
 
-document.getElementById('btnExportCSV').onclick = () => alert("CSV Export coming soon.");
+document.getElementById('btnExportCSV').onclick = () => {
+  alert("CSV Export will be added in next update.");
+};
 </script>
 </body>
 </html>
