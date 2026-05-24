@@ -6,24 +6,132 @@
 <title>Equipment Hours • Realtime Cloud</title>
 <style>
   :root {
-    --bg: #0d1421; --card: rgba(20,30,50,0.9); --border: #2a3a5a;
-    --text: #e0e8ff; --accent: #5a9fff; --green: #44cc88; --red: #ff5555;
+    --bg: #0a111f;
+    --card: #111827;
+    --border: #334155;
+    --text: #e0e8ff;
+    --accent: #60a5fa;
+    --input-bg: #1e2937;
   }
-  body { margin:0; font-family:system-ui,sans-serif; background:var(--bg); color:var(--text); padding:16px; }
-  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; margin:20px auto; box-shadow:0 10px 30px rgba(0,0,0,0.6); max-width:100%; }
-  input, button { width:100%; padding:12px; margin:8px 0; border-radius:8px; border:none; }
-  input { background:rgba(255,255,255,0.08); color:white; }
-  button { font-weight:600; cursor:pointer; }
-  .btn-primary { background:var(--accent); color:white; }
-  .btn-google { background:white; color:#333; display:flex; align-items:center; justify-content:center; gap:10px; }
-  .link { color:#aaccff; background:none; border:none; cursor:pointer; text-decoration:underline; font-size:0.95rem; }
-  .error { color:#ffaa88; margin:10px 0; min-height:20px; }
+  body { 
+    margin:0; 
+    font-family:system-ui,sans-serif; 
+    background:var(--bg); 
+    color:var(--text); 
+    padding:16px; 
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .card { 
+    background:var(--card); 
+    border:1px solid var(--border); 
+    border-radius:16px; 
+    padding:32px; 
+    box-shadow:0 10px 40px rgba(0,0,0,0.7); 
+    width: 100%;
+    max-width: 420px;
+  }
+  h1 {
+    margin: 0 0 8px 0;
+    font-size: 28px;
+    font-weight: 600;
+  }
+  p {
+    margin: 0 0 24px 0;
+    color: #94a3b8;
+    font-size: 15px;
+  }
+  input, button { 
+    width:100%; 
+    padding:14px 16px; 
+    margin:8px 0; 
+    border-radius:8px; 
+    border:none; 
+    font-size: 16px;
+  }
+  input { 
+    background:var(--input-bg); 
+    color:white; 
+  }
+  button { 
+    font-weight:600; 
+    cursor:pointer; 
+    transition: all 0.2s;
+  }
+  .btn-google { 
+    background:white; 
+    color:#1f2937; 
+    display:flex; 
+    align-items:center; 
+    justify-content:center; 
+    gap:10px; 
+    font-weight:500;
+  }
+  .btn-google:hover {
+    background:#f8fafc;
+  }
+  .btn-primary { 
+    background:var(--accent); 
+    color:white; 
+  }
+  .btn-primary:hover {
+    background:#3b82f6;
+  }
+  .link { 
+    color:#93c5fd; 
+    background:none; 
+    border:none; 
+    cursor:pointer; 
+    text-decoration:underline; 
+    font-size:0.95rem; 
+    padding: 4px 0;
+  }
+  .link:hover {
+    color:#bfdbfe;
+  }
+  .error { 
+    color:#fb923c; 
+    margin:12px 0; 
+    min-height:20px; 
+    text-align:center;
+  }
+  .divider {
+    text-align:center; 
+    margin:20px 0; 
+    color:#64748b;
+    position: relative;
+  }
+  .divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--border);
+  }
+  .divider span {
+    background: var(--card);
+    padding: 0 16px;
+  }
   table { width:100%; border-collapse:collapse; margin-top:20px; }
   th, td { padding:10px; border:1px solid rgba(255,255,255,0.1); text-align:center; }
   .sticky-left { position:sticky; left:0; background:#1a2538; z-index:3; font-weight:bold; min-width:140px; }
-  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#44cc88; color:white; padding:12px 24px; border-radius:8px; display:none; z-index:1000; }
+  .toast { 
+    position:fixed; 
+    bottom:20px; 
+    left:50%; 
+    transform:translateX(-50%); 
+    background:#44cc88; 
+    color:white; 
+    padding:12px 24px; 
+    border-radius:8px; 
+    display:none; 
+    z-index:1000; 
+  }
 </style>
-
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -31,26 +139,30 @@
 </head>
 <body>
 
-<!-- ==================== IMPROVED LOGIN SCREEN ==================== -->
+<!-- LOGIN SCREEN -->
 <div id="loginScreen">
   <div class="card">
     <h1>Equipment Hours Log</h1>
     <p>Sign in to access realtime data</p>
-
+    
     <button class="btn-google" id="googleBtn">
       <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" width="24" height="24">
       Continue with Google
     </button>
-
-    <div style="text-align:center; margin:20px 0; color:#888;">— OR —</div>
-
-    <input type="email" id="email" placeholder="Email" />
+    
+    <div class="divider"><span>— OR —</span></div>
+    
+    <input type="email" id="email" placeholder="Email" value="jogendra.photo@gmail.com" />
     <input type="password" id="password" placeholder="Password" />
-
+    
     <button class="btn-primary" id="loginBtn">Login</button>
-    <button class="link" id="showRegister">Create new account</button>
-    <button class="link" id="forgotPass">Forgot Password?</button>
-
+    
+    <div style="text-align:center; margin-top:16px;">
+      <button class="link" id="showRegister">Create new account</button>
+      <br>
+      <button class="link" id="forgotPass">Forgot Password?</button>
+    </div>
+    
     <div id="loginError" class="error"></div>
   </div>
 </div>
@@ -67,12 +179,12 @@
   </div>
 </div>
 
-<!-- APP (Unchanged - Same as your original) -->
+<!-- APP -->
 <div id="appRoot" style="display:none;">
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
       <h1>Equipment Hours <small id="userInfo" style="color:#88ffaa;"></small></h1>
-      <button id="logoutBtn" style="background:var(--red); padding:8px 16px;">Logout</button>
+      <button id="logoutBtn" style="background:#ef4444; padding:8px 16px;">Logout</button>
     </div>
     <div style="margin:15px 0; display:flex; gap:8px; flex-wrap:wrap;">
       <input type="date" id="workDate" value="2026-05-24" />
@@ -118,7 +230,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
-
 let currentUserUID = null;
 let equipmentList = ["gen1", "gen2", "gen3", "gen4", "gen5", "comp1", "tower1"];
 
@@ -143,7 +254,7 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-// ==================== Login / Register (Improved) ====================
+// ==================== Login / Register ====================
 document.getElementById('loginBtn').onclick = () => {
   const email = document.getElementById('email').value.trim();
   const pass = document.getElementById('password').value;
@@ -193,7 +304,7 @@ document.getElementById('forgotPass').onclick = () => {
 
 document.getElementById('logoutBtn').onclick = () => auth.signOut();
 
-// ==================== YOUR ORIGINAL DATA LOGIC (Unchanged) ====================
+// ==================== Realtime Database ====================
 const getUserRef = (date) => {
   const monthKey = date.substring(0, 7);
   return db.ref(`equipmentHours/${currentUserUID}/${monthKey}/${date}`);
@@ -284,6 +395,7 @@ function showToast(msg) {
   setTimeout(() => toast.style.display = 'none', 2200);
 }
 
+// Export
 document.getElementById('btnExportCSV').onclick = () => {
   alert("CSV Export will be added in next update.");
 };
