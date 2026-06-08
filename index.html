@@ -208,11 +208,10 @@
     body { padding: 10px; }
     .card { padding: 14px 14px; }
     .login-card { padding: 18px; border-radius: 12px; }
-    .login-title { font-size: 1.35rem; }
     .sheet { max-height: 65vh; }
     table { font-size: 0.85rem; }
     th, td { padding: 6px 6px; }
-    .sticky-left { min-width: 130px; font-size: 0.85rem; }
+    .sticky-left { min-width: 130px; }
     input, select { max-width: 100%; padding: 10px; font-size: 16px; }
   }
 </style>
@@ -277,17 +276,14 @@
   </div>
 </div>
 
-<!-- RESET MODAL (New Method) -->
+<!-- RESET MODAL -->
 <div id="resetModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">Forgot Password</div>
     <p style="margin-bottom:16px; color:#a0c0ff;">Enter your username. A password reset link will be sent to your email.</p>
-    
     <label>Username:</label>
     <input type="text" id="resetUser" placeholder="Enter your username" style="margin:8px 0 12px;" />
-
     <div id="resetMsg" class="login-error" style="margin-top:12px;"></div>
-
     <div class="modal-buttons">
       <button id="btnCancelReset" style="background:#444;" type="button">Cancel</button>
       <button id="btnConfirmReset" class="btn-primary" type="button">Send Reset Link</button>
@@ -430,7 +426,10 @@ async function loadAppState() {
     const snap = await fb().api.get(r);
     if (!snap.exists()) return false;
     const state = snap.val();
-    if (state?.equipmentGroups) equipmentGroups.length = 0, state.equipmentGroups.forEach(g => equipmentGroups.push(g));
+    if (state?.equipmentGroups) {
+      equipmentGroups.length = 0;
+      state.equipmentGroups.forEach(g => equipmentGroups.push(g));
+    }
     if (state?.monthData) monthData = state.monthData;
     if (state?.currentDate) currentDate = state.currentDate;
     return true;
@@ -512,16 +511,23 @@ function renderDailyEntry() {
 
 function applyReadOnlyMode() {
   if (isMasterUser) return;
-  document.querySelectorAll('input, button, select').forEach(el => {
-    if (!el.id.includes('login') && !el.id.includes('reg') && !el.id.includes('reset')) el.disabled = true;
+  
+  // Disable only editing elements
+  document.querySelectorAll('#btnSaveDay, #btnSaveAll, #btnAddEquipment, #fileImportCSV, .btn-delete, .hr-service, .hr-service-date, .initial, .final, #newEquipName, #newEquipCategory, #btnConfirmAdd').forEach(el => {
+    el.disabled = true;
   });
+
+  // Allow viewing and navigation
+  document.getElementById("btnLoadDay").disabled = false;
+  document.getElementById("btnExportCSV").disabled = false;
+  document.getElementById("btnSignOut").disabled = false;
+  document.getElementById("workDate").disabled = false;
+
   showToast("👁️ View Only Mode - Only master can edit", "#ffaa44");
 }
 
 // Auth
 (() => {
-  const REMEMBER_USER_KEY = "equipHoursRememberUser";
-
   function unameToEmail(username) {
     const safe = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "_");
     return `${safe}@equip-hours.local`;
@@ -563,12 +569,10 @@ function applyReadOnlyMode() {
       try {
         await fb().api.setPersistence(fb().auth, remember ? fb().api.browserLocalPersistence : fb().api.browserSessionPersistence);
         await fb().api.signInWithEmailAndPassword(fb().auth, unameToEmail(u), p);
-        if (remember) localStorage.setItem(REMEMBER_USER_KEY, u);
         showApp();
       } catch { err.textContent = "Invalid username or password"; }
     };
 
-    // Register
     $("btnOpenRegister").onclick = () => $("registerModal").style.display = "flex";
     $("btnCancelRegister").onclick = () => $("registerModal").style.display = "none";
     $("btnConfirmRegister").onclick = async () => {
@@ -579,10 +583,9 @@ function applyReadOnlyMode() {
         await fb().api.createUserWithEmailAndPassword(fb().auth, unameToEmail(u), p);
         $("registerModal").style.display = "none";
         showLogin("Account created! Please login.");
-      } catch { $("regMsg").textContent = "Registration failed (user may already exist)"; }
+      } catch { $("regMsg").textContent = "Registration failed"; }
     };
 
-    // Forgot Password - Send Reset Email
     $("btnOpenReset").onclick = () => {
       $("resetUser").value = "";
       $("resetMsg").textContent = "";
@@ -593,17 +596,16 @@ function applyReadOnlyMode() {
       const u = $("resetUser").value.trim().toLowerCase();
       const msg = $("resetMsg");
       if (!u) return msg.textContent = "Please enter username";
-
       try {
         await fb().api.sendPasswordResetEmail(fb().auth, unameToEmail(u));
         msg.style.color = "#44cc88";
-        msg.textContent = "Reset link sent to your email! Check inbox (and spam).";
-      } catch (e) {
-        msg.textContent = "Error sending reset link. Make sure username is correct.";
-      }
+        msg.textContent = "Reset link sent! Check your email (including spam).";
+      } catch { msg.textContent = "Error sending reset link."; }
     };
 
-    $("btnSignOut").onclick = () => fb().api.signOut(fb().auth);
+    $("btnSignOut").onclick = () => {
+      fb().api.signOut(fb().auth);
+    };
   }
 
   window.addEventListener("firebase-ready", initAuth);
