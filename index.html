@@ -511,22 +511,82 @@ function renderDailyEntry() {
 
 function applyReadOnlyMode() {
   if (isMasterUser) return;
-  
-  // Disable only editing elements
   document.querySelectorAll('#btnSaveDay, #btnSaveAll, #btnAddEquipment, #fileImportCSV, .btn-delete, .hr-service, .hr-service-date, .initial, .final, #newEquipName, #newEquipCategory, #btnConfirmAdd').forEach(el => {
     el.disabled = true;
   });
-
-  // Allow viewing and navigation
   document.getElementById("btnLoadDay").disabled = false;
   document.getElementById("btnExportCSV").disabled = false;
   document.getElementById("btnSignOut").disabled = false;
   document.getElementById("workDate").disabled = false;
-
   showToast("👁️ View Only Mode - Only master can edit", "#ffaa44");
 }
 
-// Auth
+// Updated Export CSV - Includes last day entry as Last Hour
+function exportMonthlyCSV() {
+  const allEquip = equipmentGroups.flatMap(g => g.items);
+  if (allEquip.length === 0) {
+    showToast("No equipment to export", "#ffaa44");
+    return;
+  }
+
+  const { monthKey, daysInMonth } = getSelectedMonthInfo();
+  const DAYS = Math.min(daysInMonth, 31);
+  const mStore = ensureMonthStore(monthKey);
+
+  let headers = ["Equipment"];
+  for (let d = 1; d <= DAYS; d++) headers.push(String(d));
+  headers.push("Total", "HourLast", "Hr Service Date", "Hr Service");
+
+  let csv = headers.join(",") + "\n";
+
+  allEquip.forEach(eq => {
+    let total = 0;
+    let hourLast = "";
+    let latestServiceDate = "";
+    let latestServiceHours = "";
+
+    const row = [eq];
+
+    // Daily hours
+    for (let d = 1; d <= DAYS; d++) {
+      const val = mStore[d]?.[eq];
+      if (val === undefined || val === null || val === "") {
+        row.push("");
+      } else {
+        const num = Number(val);
+        row.push(isNaN(num) ? "" : num);
+        total += num || 0;
+        hourLast = num;   // Last day entry becomes HourLast
+      }
+    }
+
+    row.push(total.toFixed(1));
+    row.push(hourLast === "" ? "" : Number(hourLast));
+
+    // Service info (from day 1 or latest)
+    const sd = mStore[1]?.[eq + "_serviceDate"];
+    const sh = mStore[1]?.[eq + "_hrService"];
+    if (sd) latestServiceDate = sd;
+    if (sh !== undefined && sh !== "") latestServiceHours = Number(sh);
+
+    row.push(latestServiceDate || "");
+    row.push(latestServiceHours === "" ? "" : latestServiceHours);
+
+    csv += row.join(",") + "\n";
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `equipment-hours-${monthKey}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+
+  showToast("Monthly CSV exported with last hour entry", "#44cc88");
+}
+
+// Auth (unchanged)
 (() => {
   function unameToEmail(username) {
     const safe = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "_");
@@ -563,9 +623,7 @@ function applyReadOnlyMode() {
       const remember = $("rememberMe").checked;
       const err = $("loginError");
       err.textContent = "";
-
       if (!u || !p) return err.textContent = "Enter username and password";
-
       try {
         await fb().api.setPersistence(fb().auth, remember ? fb().api.browserLocalPersistence : fb().api.browserSessionPersistence);
         await fb().api.signInWithEmailAndPassword(fb().auth, unameToEmail(u), p);
@@ -599,13 +657,11 @@ function applyReadOnlyMode() {
       try {
         await fb().api.sendPasswordResetEmail(fb().auth, unameToEmail(u));
         msg.style.color = "#44cc88";
-        msg.textContent = "Reset link sent! Check your email (including spam).";
+        msg.textContent = "Reset link sent! Check your email.";
       } catch { msg.textContent = "Error sending reset link."; }
     };
 
-    $("btnSignOut").onclick = () => {
-      fb().api.signOut(fb().auth);
-    };
+    $("btnSignOut").onclick = () => fb().api.signOut(fb().auth);
   }
 
   window.addEventListener("firebase-ready", initAuth);
@@ -614,6 +670,7 @@ function applyReadOnlyMode() {
 // Initial Render
 renderDailyEntry();
 renderMonthGrid();
+$("btnExportCSV").onclick = exportMonthlyCSV;
 </script>
 
 </body>
