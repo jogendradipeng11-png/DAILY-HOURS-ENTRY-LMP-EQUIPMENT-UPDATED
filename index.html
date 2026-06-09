@@ -229,8 +229,7 @@
     </div>
     <div class="small-note">
       Cloud synced worldwide.<br>
-      Anyone can register to <strong>VIEW</strong>.<br>
-      Only <strong>master</strong> user can edit.
+      All users can now edit.
     </div>
     <div id="loginError" class="login-error"></div>
   </div>
@@ -371,7 +370,6 @@ const equipmentGroups = [
 
 let monthData = {};
 let currentDate = "2026-06-09";
-let isMasterUser = false;
 const CLOUD_STATE_ROOT = "equipHoursState";
 
 function fb() { return window.__fb; }
@@ -383,7 +381,6 @@ function cloudStateRef() {
 }
 
 function saveAppState() {
-  if (!isMasterUser) return;
   const r = cloudStateRef();
   if (r) fb().api.set(r, { equipmentGroups, monthData, currentDate, updatedAt: Date.now() });
 }
@@ -493,7 +490,6 @@ function calculateWorked(row) {
 
 // ==================== SAVE / LOAD ====================
 function saveDay() {
-  if (!isMasterUser) return showToast("Only master user can save", "#ffaa44");
   const date = $("workDate").value;
   if (!date) return showToast("Select a date first", "#ffaa44");
 
@@ -567,7 +563,7 @@ function attachListeners() {
   $("fileImportCSV").onchange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    showToast("Import not fully implemented yet", "#ffaa44");
+    showToast("Import feature coming soon", "#ffaa44");
     e.target.value = "";
   };
 
@@ -667,19 +663,12 @@ function exportMonthlyCSV() {
     $("loginRoot").style.display = "none";
     $("appRoot").style.display = "block";
 
-    const username = ($("loginUser").value || localStorage.getItem("lastUsername") || "").toLowerCase().trim();
-    isMasterUser = username === "master";
-
     loadAppState().then(() => {
       renderDailyEntry();
       renderMonthGrid();
       attachListeners();
-      if (!isMasterUser) {
-        document.querySelectorAll('#btnSaveDay, #btnSaveAll, #btnAddEquipment, #fileImportCSV, .btn-delete').forEach(el => el.disabled = true);
-        showToast("👁️ View Only Mode", "#ffaa44");
-      }
+      showToast("All users have full edit access", "#44cc88");
     });
-    localStorage.setItem("lastUsername", username);
   }
 
   function initAuth() {
