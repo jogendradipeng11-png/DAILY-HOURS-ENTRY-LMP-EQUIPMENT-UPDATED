@@ -1042,17 +1042,29 @@ $("btnSaveAll").onclick = () => {
       serviceDateInp.dataset.orig = serviceDateInp.value;
       serviceDateInp.dataset.dirty = "";
     }
+      // Copy Final → Next day Initial (if empty)
+      const finalVal = Number(finalInp.value) || 0;
+      if (nextStore[eq + "_initial"] === undefined) {
+        nextStore[eq + "_initial"] = finalVal;
+      }
+    });
 
-    // === CRITICAL FIX: Copy Final → Next Day Initial (if empty) ===
-    const finalVal = Number(finalInp?.value) || 0;
-    if (finalVal > 0 && (nextStore[eq + "_initial"] === undefined || nextStore[eq + "_initial"] === "")) {
-      nextStore[eq + "_initial"] = finalVal;
-    }
-  });
+    saveAppState(true);
+    showToast("Saved (last modified) + copied Final → next Initial (if empty)", "#44cc88");
+  };
 
-  saveAppState(true);
-  showToast("Saved (Last Modified) + copied Final → next Initial (if empty)", "#44cc88");
+  // CSV Buttons
+  $("btnExportCSV").onclick = exportMonthlyCSV;
+  $("fileImportCSV").onchange = e => {
+    const file = e.target.files[0];
+    if (file) importMonthlyCSV(file);
+    e.target.value = "";
+  };
 
+  // Sign out
+  $("btnSignOut").onclick = () => {
+    if (window.__fb?.api?.signOut) window.__fb.api.signOut(window.__fb.auth);
+  };
   // Refresh current view
   renderDailyEntry();
   renderMonthGrid();
