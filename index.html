@@ -4,7 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Equipment Hours • Single File</title>
-
 <style>
   :root {
     --bg: #0d1421;
@@ -90,11 +89,10 @@
     border: none;
   }
   .btn-primary { background: var(--accent); color: white; }
-  .btn-danger  { background: #ff4444; color: white; }
+  .btn-danger { background: #ff4444; color: white; }
   .total { font-weight: bold; color: #88ffaa; }
   .flex { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
   .sheet { overflow-x: auto; max-height: 520px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 24px; }
-
   .modal {
     display: none;
     position: fixed;
@@ -122,7 +120,6 @@
     gap: 12px;
     justify-content: flex-end;
   }
-
   #loginRoot {
     display: none;
     min-height: calc(100vh - 32px);
@@ -191,19 +188,7 @@
     margin-top: 6px;
     line-height: 1.35;
   }
-
   #appRoot { display: none; }
-
-  #monthTable input[type="number"]{
-    -moz-appearance: textfield;
-    appearance: textfield;
-  }
-  #monthTable input[type="number"]::-webkit-outer-spin-button,
-  #monthTable input[type="number"]::-webkit-inner-spin-button{
-    -webkit-appearance: none;
-    margin: 0;
-  }
-
   @media (max-width: 900px) {
     body { padding: 10px; }
     .card { padding: 14px 14px; }
@@ -216,7 +201,6 @@
   }
 </style>
 </head>
-
 <body>
 
 <!-- LOGIN -->
@@ -224,37 +208,30 @@
   <div class="login-card">
     <h1 class="login-title">Equipment Hours Log</h1>
     <p class="login-subtitle">Sign in to access the system</p>
-
     <div class="login-row">
       <label for="loginUser">User ID (Username)</label>
       <input type="text" id="loginUser" autocomplete="username" placeholder="Enter username" />
     </div>
-
     <div class="login-row">
       <label for="loginPass">Password</label>
       <input type="password" id="loginPass" autocomplete="current-password" placeholder="Enter password" />
     </div>
-
     <div class="login-row" style="display:flex; align-items:center; gap:10px; margin-top:6px;">
       <input type="checkbox" id="rememberMe" style="width:auto; max-width:none;">
       <label for="rememberMe" style="margin:0; font-weight:600; color:#c0d0ff;">Remember me</label>
     </div>
-
     <div class="login-actions">
       <button class="btn-primary" id="btnLogin" type="button">Login</button>
     </div>
-
     <div class="login-links">
       <button class="link-btn" id="btnOpenRegister" type="button">Register New User</button>
       <button class="link-btn" id="btnOpenReset" type="button">Forgot Password?</button>
     </div>
-
     <div class="small-note">
       Cloud synced worldwide.<br>
       Anyone can register to <strong>VIEW</strong>.<br>
       Only <strong>master</strong> user can edit.
     </div>
-
     <div id="loginError" class="login-error"></div>
   </div>
 </div>
@@ -297,10 +274,10 @@
     <h1>Equipment Hours Log</h1>
     <div class="flex" style="margin:16px 0; align-items:center; flex-wrap:wrap; gap:12px;">
       <label><strong>Work Date:</strong></label>
-      <input type="date" id="workDate" value="2026-02-26" />
+      <input type="date" id="workDate" value="2026-06-09" />
       <button class="btn-primary" id="btnLoadDay">Load Day</button>
       <button class="btn-primary" id="btnSaveDay">Save Day</button>
-      <button class="btn-primary" id="btnSaveAll">Save (Last Modified)</button>
+      <button class="btn-primary" id="btnSaveAll">Save All</button>
       <button class="btn-primary" id="btnAddEquipment">+ Add Equipment</button>
       <button class="btn-primary" id="btnExportCSV">Export Monthly CSV</button>
       <label class="btn btn-primary" style="cursor:pointer; margin:0;">
@@ -309,7 +286,6 @@
       </label>
       <button class="btn-danger" id="btnSignOut" type="button">Sign out</button>
     </div>
-
     <div id="toast" style="margin:12px 0; min-height:24px; color:#ffdd88;"></div>
 
     <div class="sheet">
@@ -382,31 +358,24 @@
   const auth = getAuth(app);
   const db = getDatabase(app);
 
-  window.__fb = {
-    app, auth, db,
-    api: { ref, get, set, onAuthStateChanged, signInWithEmailAndPassword, 
-           createUserWithEmailAndPassword, signOut, setPersistence, 
-           browserLocalPersistence, browserSessionPersistence, sendPasswordResetEmail }
-  };
+  window.__fb = { app, auth, db, api: { ref, get, set, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, browserSessionPersistence, sendPasswordResetEmail } };
   window.dispatchEvent(new Event("firebase-ready"));
 </script>
 
 <script>
-// Data & Config
+// ==================== DATA & CONFIG ====================
 const equipmentGroups = [
   { name: "Generators", items: ["gen1", "gen2", "gen3", "gen4", "gen5"] },
   { name: "Compressors & Lighting", items: ["comp", "tower light"] }
 ];
 
 let monthData = {};
-let currentDate = "2026-02-26";
+let currentDate = "2026-06-09";
 let isMasterUser = false;
-
 const CLOUD_STATE_ROOT = "equipHoursState";
 
 function fb() { return window.__fb; }
 function getUid() { return fb()?.auth?.currentUser?.uid || null; }
-
 function cloudStateRef() {
   const uid = getUid();
   if (!uid) return null;
@@ -433,7 +402,7 @@ async function loadAppState() {
     if (state?.monthData) monthData = state.monthData;
     if (state?.currentDate) currentDate = state.currentDate;
     return true;
-  } catch { return false; }
+  } catch(e) { console.error(e); return false; }
 }
 
 function $(id) { return document.getElementById(id); }
@@ -446,6 +415,7 @@ function showToast(msg, color = "#88ffaa") {
   setTimeout(() => t.style.opacity = "0", 3400);
 }
 
+// ==================== MONTH GRID ====================
 function getSelectedMonthInfo() {
   const dateStr = $("workDate")?.value || currentDate || "";
   const [y, m] = dateStr.split("-").slice(0,2).map(n => parseInt(n));
@@ -468,9 +438,9 @@ function renderMonthGrid() {
   const DAYS = Math.min(daysInMonth, 31);
   const mStore = ensureMonthStore(monthKey);
 
-  let htmlHead = "<tr><th class='sticky-left'>Equipment</th>";
+  let htmlHead = `<tr><th class="sticky-left">Equipment</th>`;
   for (let d = 1; d <= DAYS; d++) htmlHead += `<th>${d}</th>`;
-  htmlHead += "<th class='total'>Total</th></tr>";
+  htmlHead += `<th class="total">Total</th></tr>`;
   head.innerHTML = htmlHead;
 
   let htmlBody = "";
@@ -490,44 +460,146 @@ function renderMonthGrid() {
   body.innerHTML = htmlBody;
 }
 
+// ==================== DAILY TABLE ====================
 function renderDailyEntry() {
   const body = $("dailyBody");
   const date = $("workDate").value || currentDate;
   let html = "";
+
   equipmentGroups.forEach(group => {
     html += `<tr class="category-header"><td colspan="8">${group.name}</td></tr>`;
     group.items.forEach(eq => {
-      html += `<tr data-eq="${eq}"><td class="sticky-left">${eq}</td><td>${date}</td>
+      html += `<tr data-eq="${eq}">
+        <td class="sticky-left">${eq}</td>
+        <td>${date}</td>
         <td><input type="number" step="0.1" class="hr-service"></td>
         <td><input type="date" class="hr-service-date"></td>
         <td><input type="number" step="0.1" class="initial"></td>
         <td><input type="number" step="0.1" class="final"></td>
         <td class="worked">0.0</td>
-        <td><button class="btn-delete">×</button></td></tr>`;
+        <td><button class="btn-delete">×</button></td>
+      </tr>`;
     });
   });
   body.innerHTML = html;
 }
 
-function applyReadOnlyMode() {
-  if (isMasterUser) return;
-  document.querySelectorAll('#btnSaveDay, #btnSaveAll, #btnAddEquipment, #fileImportCSV, .btn-delete, .hr-service, .hr-service-date, .initial, .final, #newEquipName, #newEquipCategory, #btnConfirmAdd').forEach(el => {
-    el.disabled = true;
-  });
-  document.getElementById("btnLoadDay").disabled = false;
-  document.getElementById("btnExportCSV").disabled = false;
-  document.getElementById("btnSignOut").disabled = false;
-  document.getElementById("workDate").disabled = false;
-  showToast("👁️ View Only Mode - Only master can edit", "#ffaa44");
+function calculateWorked(row) {
+  const initial = parseFloat(row.querySelector(".initial").value) || 0;
+  const final = parseFloat(row.querySelector(".final").value) || 0;
+  const workedCell = row.querySelector(".worked");
+  workedCell.textContent = (final - initial).toFixed(1);
 }
 
-// Updated Export CSV - Includes last day entry as Last Hour
+// ==================== SAVE / LOAD ====================
+function saveDay() {
+  if (!isMasterUser) return showToast("Only master user can save", "#ffaa44");
+  const date = $("workDate").value;
+  if (!date) return showToast("Select a date first", "#ffaa44");
+
+  const dayNum = parseInt(date.split("-")[2]);
+  const mStore = ensureMonthStore(getSelectedMonthInfo().monthKey);
+
+  document.querySelectorAll("#dailyBody tr[data-eq]").forEach(row => {
+    const eq = row.dataset.eq;
+    const service = row.querySelector(".hr-service").value;
+    const serviceDate = row.querySelector(".hr-service-date").value;
+    const initial = row.querySelector(".initial").value;
+    const final = row.querySelector(".final").value;
+
+    if (!mStore[dayNum]) mStore[dayNum] = {};
+
+    if (service) mStore[dayNum][eq] = parseFloat(service) || 0;
+    if (serviceDate) mStore[dayNum][eq + "_serviceDate"] = serviceDate;
+    if (service) mStore[dayNum][eq + "_hrService"] = parseFloat(service);
+  });
+
+  saveAppState();
+  renderMonthGrid();
+  showToast("Day saved successfully ✓", "#44cc88");
+}
+
+function loadDay() {
+  const date = $("workDate").value;
+  if (!date) return;
+
+  renderDailyEntry();
+
+  const dayNum = parseInt(date.split("-")[2]);
+  const mStore = ensureMonthStore(getSelectedMonthInfo().monthKey);
+  const dayData = mStore[dayNum] || {};
+
+  document.querySelectorAll("#dailyBody tr[data-eq]").forEach(row => {
+    const eq = row.dataset.eq;
+    const serviceInput = row.querySelector(".hr-service");
+    const serviceDateInput = row.querySelector(".hr-service-date");
+
+    if (dayData[eq] !== undefined) serviceInput.value = dayData[eq];
+    if (dayData[eq + "_serviceDate"]) serviceDateInput.value = dayData[eq + "_serviceDate"];
+  });
+
+  showToast("Day loaded", "#88ffaa");
+}
+
+// ==================== LISTENERS ====================
+function attachListeners() {
+  $("btnSaveDay").onclick = saveDay;
+  $("btnLoadDay").onclick = loadDay;
+  $("btnSaveAll").onclick = () => { saveAppState(); showToast("All data saved to cloud", "#44cc88"); };
+
+  $("btnAddEquipment").onclick = () => $("addModal").style.display = "flex";
+  $("btnCancelAdd").onclick = () => $("addModal").style.display = "none";
+  $("btnConfirmAdd").onclick = () => {
+    const name = $("newEquipName").value.trim();
+    const catIndex = parseInt($("newEquipCategory").value);
+    if (!name) return showToast("Enter equipment name", "#ffaa44");
+
+    if (!equipmentGroups[catIndex]) equipmentGroups[catIndex] = {name: "Other", items: []};
+    equipmentGroups[catIndex].items.push(name);
+
+    $("addModal").style.display = "none";
+    renderDailyEntry();
+    renderMonthGrid();
+    saveAppState();
+    showToast("Equipment added successfully", "#44cc88");
+  };
+
+  $("fileImportCSV").onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    showToast("Import not fully implemented yet", "#ffaa44");
+    e.target.value = "";
+  };
+
+  $("btnExportCSV").onclick = exportMonthlyCSV;
+
+  // Live calculations
+  document.addEventListener("input", (e) => {
+    if (e.target.classList.contains("initial") || e.target.classList.contains("final")) {
+      const row = e.target.closest("tr");
+      if (row) calculateWorked(row);
+    }
+  });
+
+  // Auto-save month grid
+  document.addEventListener("change", (e) => {
+    if (e.target.tagName === "INPUT" && e.target.type === "number" && e.target.dataset.day) {
+      const day = parseInt(e.target.dataset.day);
+      const eq = e.target.dataset.eq;
+      const val = parseFloat(e.target.value) || 0;
+      const mStore = ensureMonthStore(getSelectedMonthInfo().monthKey);
+      if (!mStore[day]) mStore[day] = {};
+      mStore[day][eq] = val;
+      saveAppState();
+      renderMonthGrid();
+    }
+  });
+}
+
+// ==================== EXPORT CSV ====================
 function exportMonthlyCSV() {
   const allEquip = equipmentGroups.flatMap(g => g.items);
-  if (allEquip.length === 0) {
-    showToast("No equipment to export", "#ffaa44");
-    return;
-  }
+  if (allEquip.length === 0) return showToast("No equipment to export", "#ffaa44");
 
   const { monthKey, daysInMonth } = getSelectedMonthInfo();
   const DAYS = Math.min(daysInMonth, 31);
@@ -546,8 +618,6 @@ function exportMonthlyCSV() {
     let latestServiceHours = "";
 
     const row = [eq];
-
-    // Daily hours
     for (let d = 1; d <= DAYS; d++) {
       const val = mStore[d]?.[eq];
       if (val === undefined || val === null || val === "") {
@@ -556,21 +626,16 @@ function exportMonthlyCSV() {
         const num = Number(val);
         row.push(isNaN(num) ? "" : num);
         total += num || 0;
-        hourLast = num;   // Last day entry becomes HourLast
+        hourLast = num;
       }
     }
-
     row.push(total.toFixed(1));
     row.push(hourLast === "" ? "" : Number(hourLast));
 
-    // Service info (from day 1 or latest)
     const sd = mStore[1]?.[eq + "_serviceDate"];
     const sh = mStore[1]?.[eq + "_hrService"];
-    if (sd) latestServiceDate = sd;
-    if (sh !== undefined && sh !== "") latestServiceHours = Number(sh);
-
-    row.push(latestServiceDate || "");
-    row.push(latestServiceHours === "" ? "" : latestServiceHours);
+    row.push(sd || "");
+    row.push(sh !== undefined && sh !== "" ? Number(sh) : "");
 
     csv += row.join(",") + "\n";
   });
@@ -582,11 +647,10 @@ function exportMonthlyCSV() {
   link.download = `equipment-hours-${monthKey}.csv`;
   link.click();
   URL.revokeObjectURL(url);
-
-  showToast("Monthly CSV exported with last hour entry", "#44cc88");
+  showToast("Monthly CSV exported", "#44cc88");
 }
 
-// Auth (unchanged)
+// ==================== AUTH ====================
 (() => {
   function unameToEmail(username) {
     const safe = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "_");
@@ -609,7 +673,11 @@ function exportMonthlyCSV() {
     loadAppState().then(() => {
       renderDailyEntry();
       renderMonthGrid();
-      if (!isMasterUser) applyReadOnlyMode();
+      attachListeners();
+      if (!isMasterUser) {
+        document.querySelectorAll('#btnSaveDay, #btnSaveAll, #btnAddEquipment, #fileImportCSV, .btn-delete').forEach(el => el.disabled = true);
+        showToast("👁️ View Only Mode", "#ffaa44");
+      }
     });
     localStorage.setItem("lastUsername", username);
   }
@@ -623,12 +691,15 @@ function exportMonthlyCSV() {
       const remember = $("rememberMe").checked;
       const err = $("loginError");
       err.textContent = "";
+
       if (!u || !p) return err.textContent = "Enter username and password";
+
       try {
         await fb().api.setPersistence(fb().auth, remember ? fb().api.browserLocalPersistence : fb().api.browserSessionPersistence);
         await fb().api.signInWithEmailAndPassword(fb().auth, unameToEmail(u), p);
-        showApp();
-      } catch { err.textContent = "Invalid username or password"; }
+      } catch {
+        err.textContent = "Invalid username or password";
+      }
     };
 
     $("btnOpenRegister").onclick = () => $("registerModal").style.display = "flex";
@@ -644,11 +715,7 @@ function exportMonthlyCSV() {
       } catch { $("regMsg").textContent = "Registration failed"; }
     };
 
-    $("btnOpenReset").onclick = () => {
-      $("resetUser").value = "";
-      $("resetMsg").textContent = "";
-      $("resetModal").style.display = "flex";
-    };
+    $("btnOpenReset").onclick = () => { $("resetModal").style.display = "flex"; };
     $("btnCancelReset").onclick = () => $("resetModal").style.display = "none";
     $("btnConfirmReset").onclick = async () => {
       const u = $("resetUser").value.trim().toLowerCase();
@@ -657,7 +724,7 @@ function exportMonthlyCSV() {
       try {
         await fb().api.sendPasswordResetEmail(fb().auth, unameToEmail(u));
         msg.style.color = "#44cc88";
-        msg.textContent = "Reset link sent! Check your email.";
+        msg.textContent = "Reset link sent!";
       } catch { msg.textContent = "Error sending reset link."; }
     };
 
@@ -667,11 +734,9 @@ function exportMonthlyCSV() {
   window.addEventListener("firebase-ready", initAuth);
 })();
 
-// Initial Render
+// Initial render
 renderDailyEntry();
 renderMonthGrid();
-$("btnExportCSV").onclick = exportMonthlyCSV;
 </script>
-
 </body>
 </html>
