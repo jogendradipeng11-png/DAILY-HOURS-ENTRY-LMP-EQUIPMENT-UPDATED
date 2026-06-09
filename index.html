@@ -625,6 +625,7 @@ sendPasswordResetEmail
     allEquip.forEach(eq => {
       let total = 0;
       let hourLast = "";
+      let lastFinalHour = "";
 
       const row = [q(eq)];
 
@@ -638,13 +639,22 @@ sendPasswordResetEmail
           else {
             row.push(num);
             total += num;
-            hourLast = num;
+           const finalMeter = mStore[d]?.[eq + "_final"];
+
+if (
+  finalMeter !== undefined &&
+  finalMeter !== null &&
+  finalMeter !== ""
+) {
+  lastFinalHour = Number(finalMeter);
+}
+            
           }
         }
       }
 
       row.push(total.toFixed(1));
-      row.push(hourLast === "" ? "" : Number(hourLast));
+row.push(lastFinalHour === "" ? "" : Number(lastFinalHour));
 
       let latestServiceDate = "";
       let latestServiceHours = "";
