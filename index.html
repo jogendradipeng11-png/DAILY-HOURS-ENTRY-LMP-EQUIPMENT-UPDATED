@@ -287,21 +287,13 @@
 <div id="resetModal" class="modal auth-modal">
   <div class="modal-content">
     <div class="modal-header">Reset Password</div>
-
+    <p style="margin-bottom:16px; color:#a0c0ff;">A password reset link will be sent to your email.</p>
     <label>Username:</label>
     <input type="text" id="resetUser" placeholder="Enter your username" style="margin:8px 0 12px;" />
-
-    <label>Recovery PIN:</label>
-    <input type="text" id="resetPin" inputmode="numeric" placeholder="Enter your PIN" style="margin:8px 0 12px;" />
-
-    <label>New Password:</label>
-    <input type="password" id="resetNewPass" placeholder="Enter a new password" style="margin:8px 0 6px;" />
-
     <div id="resetMsg" class="login-error" style="margin-top:12px;"></div>
-
     <div class="modal-buttons">
       <button id="btnCancelReset" style="background:#444;" type="button">Cancel</button>
-      <button id="btnConfirmReset" class="btn-primary" type="button">Reset</button>
+      <button id="btnConfirmReset" class="btn-primary" type="button">Send Reset Link</button>
     </div>
   </div>
 </div>
@@ -380,56 +372,48 @@
   </div>
 
   <!-- ────────────────────────────────────────────────
-       FIREBASE LOADER (Module CDN)
-       ──────────────────────────────────────────────── -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-    import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
-    import {
-  getAuth, onAuthStateChanged,
-  signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  signOut, setPersistence,
-  browserLocalPersistence, browserSessionPersistence,
-  GoogleAuthProvider, signInWithPopup   // ✅ ADD THIS
-} from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
-    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-functions.js";
+<!-- FIREBASE LOADER -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+  import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+  import {
+    getAuth, onAuthStateChanged,
+    signInWithEmailAndPassword, createUserWithEmailAndPassword,
+    signOut, setPersistence,
+    browserLocalPersistence, browserSessionPersistence,
+    GoogleAuthProvider, signInWithPopup,
+    sendPasswordResetEmail
+  } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
-    // ✅ REPLACE WITH YOUR FIREBASE CONFIG (include databaseURL)
-    const firebaseConfig = {
-  apiKey: "AIzaSyBgQbh6pp78iwXpH9qdQk1viEgy9zAmX6A",
-  authDomain: "equipment-hours-lmp.firebaseapp.com",
-  databaseURL: "https://equipment-hours-lmp-default-rtdb.firebaseio.com",
-  projectId: "equipment-hours-lmp",
-  storageBucket: "equipment-hours-lmp.firebasestorage.app",
-  messagingSenderId: "414868275365",
-  appId: "1:414868275365:web:467a98dc301e3585e98d4c",
-  measurementId: "G-EDRB8HRECD"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyBgQbh6pp78iwXpH9qdQk1viEgy9zAmX6A",
+    authDomain: "equipment-hours-lmp.firebaseapp.com",
+    databaseURL: "https://equipment-hours-lmp-default-rtdb.firebaseio.com",
+    projectId: "equipment-hours-lmp",
+    storageBucket: "equipment-hours-lmp.firebasestorage.app",
+    messagingSenderId: "414868275365",
+    appId: "1:414868275365:web:467a98dc301e3585e98d4c",
+    measurementId: "G-EDRB8HRECD"
+  };
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
-    const functions = getFunctions(app);
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getDatabase(app);
 
-    // Expose for non-module scripts
-    window.__fb = {
-      app, auth, db, functions,
-      api: {
-  ref, get, set,
-  onAuthStateChanged,
-  signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  signOut,
-  setPersistence, browserLocalPersistence, browserSessionPersistence,
-  httpsCallable,
-  GoogleAuthProvider,      // ✅
-  signInWithPopup          // ✅
-}
-    };
-
-    window.dispatchEvent(new Event("firebase-ready"));
-  </script>
-
-  <script>
+  window.__fb = {
+    app, auth, db,
+    api: {
+      ref, get, set,
+      onAuthStateChanged,
+      signInWithEmailAndPassword, createUserWithEmailAndPassword,
+      signOut,
+      setPersistence, browserLocalPersistence, browserSessionPersistence,
+      GoogleAuthProvider, signInWithPopup,
+      sendPasswordResetEmail
+    }
+  };
+  window.dispatchEvent(new Event("firebase-ready"));
+</script>
   // ────────────────────────────────────────────────
   // Data & Config
   // ────────────────────────────────────────────────
@@ -1245,25 +1229,10 @@
   </script>
 </div>
 
-<!-- AUTH SCRIPT (Firebase Auth + PIN stored in RTDB) -->
+<!-- AUTH SCRIPT -->
 <script>
-// ✅ GOOGLE LOGIN
-document.getElementById("btnGoogleLogin").onclick = async () => {
-    const msg = document.getElementById("loginError");
-    msg.textContent = "";
-
-    try {
-        const provider = new api().GoogleAuthProvider();
-        await api().signInWithPopup(fb().auth, provider);
-        showApp();
-    } catch (err) {
-        msg.textContent = "Google sign-in failed.";
-        msg.style.color = "#ff5555";
-    }
-};
 (() => {
   const REMEMBER_USER_KEY = "equipHoursRememberUser";
-
   function fb() { return window.__fb; }
   function api() { return window.__fb.api; }
 
@@ -1275,17 +1244,13 @@ document.getElementById("btnGoogleLogin").onclick = async () => {
   function showLogin(message = "", color = "#ffdd88") {
     document.getElementById("loginRoot").style.display = "flex";
     document.getElementById("appRoot").style.display = "none";
-
     const err = document.getElementById("loginError");
     err.textContent = message;
     err.style.color = color;
-
     const rememberedUser = localStorage.getItem(REMEMBER_USER_KEY) || "";
     document.getElementById("loginUser").value = rememberedUser;
     document.getElementById("loginPass").value = "";
     document.getElementById("rememberMe").checked = !!rememberedUser;
-
-    setTimeout(() => document.getElementById("loginUser").focus(), 50);
   }
 
   function showApp() {
@@ -1305,126 +1270,100 @@ document.getElementById("btnGoogleLogin").onclick = async () => {
       const u = document.getElementById("loginUser").value.trim();
       const p = document.getElementById("loginPass").value;
       const remember = document.getElementById("rememberMe")?.checked;
-
-      const usersMsg = document.getElementById("loginError");
-      usersMsg.textContent = "";
+      const msg = document.getElementById("loginError");
+      msg.textContent = "";
 
       if (!u || !p) {
-        usersMsg.textContent = "Enter username and password.";
-        usersMsg.style.color = "#ffdd88";
+        msg.textContent = "Enter username and password.";
         return;
       }
 
       try {
-        await api().setPersistence(
-          fb().auth,
-          remember ? api().browserLocalPersistence : api().browserSessionPersistence
-        );
-
+        await api().setPersistence(fb().auth, remember ? api().browserLocalPersistence : api().browserSessionPersistence);
         const email = unameToEmail(u);
         await api().signInWithEmailAndPassword(fb().auth, email, p);
-
         if (remember) localStorage.setItem(REMEMBER_USER_KEY, u);
         else localStorage.removeItem(REMEMBER_USER_KEY);
-
         showApp();
       } catch {
-        usersMsg.textContent = "Invalid username or password.";
-        usersMsg.style.color = "#ffdd88";
+        msg.textContent = "Invalid username or password.";
       }
     };
 
-    document.getElementById("loginPass").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") document.getElementById("btnLogin").click();
-    });
-    document.getElementById("loginUser").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") document.getElementById("btnLogin").click();
-    });
-
-    // REGISTER
+    // REGISTER (PIN removed)
     const registerModal = document.getElementById("registerModal");
     document.getElementById("btnOpenRegister").onclick = () => {
       document.getElementById("regUser").value = "";
       document.getElementById("regPass").value = "";
-      document.getElementById("regPin").value  = "";
       document.getElementById("regMsg").textContent = "";
       registerModal.style.display = "flex";
-      setTimeout(() => document.getElementById("regUser").focus(), 50);
     };
     document.getElementById("btnCancelRegister").onclick = () => registerModal.style.display = "none";
-
     document.getElementById("btnConfirmRegister").onclick = async () => {
       const u = document.getElementById("regUser").value.trim();
       const p = document.getElementById("regPass").value;
-      const pin = document.getElementById("regPin").value.trim();
       const msg = document.getElementById("regMsg");
 
       if (!u || u.length < 3) { msg.textContent = "Username must be at least 3 characters."; return; }
       if (!p || p.length < 4) { msg.textContent = "Password must be at least 4 characters."; return; }
-      if (!/^\d{4,8}$/.test(pin)) { msg.textContent = "Recovery PIN must be 4–8 digits."; return; }
 
       try {
         const email = unameToEmail(u);
-        const cred = await api().createUserWithEmailAndPassword(fb().auth, email, p);
-        const uid = cred.user.uid;
-
-        // store pin in RTDB under /equipHoursPins/<uid>
-        await api().set(api().ref(fb().db, `equipHoursPins/${uid}`), { pin });
-
-        // sign out after register (same behavior as your old offline flow)
+        await api().createUserWithEmailAndPassword(fb().auth, email, p);
         await api().signOut(fb().auth);
-
         registerModal.style.display = "none";
-        showLogin("User registered. You can login now.", "#44cc88");
+        showLogin("User registered successfully. You can now login.", "#44cc88");
       } catch {
         msg.textContent = "Registration failed (user may already exist).";
       }
     };
 
-    // RESET (uses Cloud Function resetPasswordWithPin)
+    // RESET PASSWORD - Now uses email link
     const resetModal = document.getElementById("resetModal");
     document.getElementById("btnOpenReset").onclick = () => {
       document.getElementById("resetUser").value = "";
-      document.getElementById("resetPin").value  = "";
-      document.getElementById("resetNewPass").value = "";
       document.getElementById("resetMsg").textContent = "";
       resetModal.style.display = "flex";
-      setTimeout(() => document.getElementById("resetUser").focus(), 50);
     };
     document.getElementById("btnCancelReset").onclick = () => resetModal.style.display = "none";
-
     document.getElementById("btnConfirmReset").onclick = async () => {
       const u = document.getElementById("resetUser").value.trim();
-      const pin = document.getElementById("resetPin").value.trim();
-      const newPass = document.getElementById("resetNewPass").value;
       const msg = document.getElementById("resetMsg");
+      msg.textContent = "";
 
-      if (!u) { msg.textContent = "User not found."; return; }
-      if (!/^\d{4,8}$/.test(pin)) { msg.textContent = "Invalid Recovery PIN."; return; }
-      if (!newPass || newPass.length < 4) { msg.textContent = "New password must be at least 4 characters."; return; }
+      if (!u) {
+        msg.textContent = "Please enter your username.";
+        return;
+      }
 
       try {
-        const fn = api().httpsCallable(fb().functions, "resetPasswordWithPin");
-        await fn({ username: u, pin, newPassword: newPass });
-
-        resetModal.style.display = "none";
-        showLogin("Password reset successful. Please login.", "#44cc88");
+        const email = unameToEmail(u);
+        await api().sendPasswordResetEmail(fb().auth, email);
+        msg.style.color = "#44cc88";
+        msg.textContent = "Password reset link sent! Check your email.";
+        setTimeout(() => resetModal.style.display = "none", 2500);
       } catch {
-        msg.textContent = "Reset failed. Check username/PIN.";
+        msg.textContent = "Failed to send reset link. Check username.";
       }
     };
 
-    window.addEventListener("click", (e) => {
-      if (e.target === registerModal) registerModal.style.display = "none";
-      if (e.target === resetModal) resetModal.style.display = "none";
-    });
+    // Google Login
+    document.getElementById("btnGoogleLogin").onclick = async () => {
+      const msg = document.getElementById("loginError");
+      msg.textContent = "";
+      try {
+        const provider = new api().GoogleAuthProvider();
+        await api().signInWithPopup(fb().auth, provider);
+        showApp();
+      } catch {
+        msg.textContent = "Google sign-in failed.";
+      }
+    };
   }
 
-  // Wait Firebase SDK ready
   if (window.__fb && window.__fb.api) initAuth();
   else window.addEventListener("firebase-ready", initAuth, { once: true });
 })();
 </script>
-
 </body>
 </html>
