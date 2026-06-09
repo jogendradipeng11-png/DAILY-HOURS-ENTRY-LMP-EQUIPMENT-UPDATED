@@ -221,7 +221,7 @@
 
     <div class="login-row">
       <label for="loginUser">Email</label>
-      <input type="text" id="loginUser" autocomplete="username" placeholder="Enter username" />
+      <input type="text" id="loginUser" autocomplete="username" placeholder="Enter email" />
     </div>
 
     <div class="login-row">
@@ -246,7 +246,7 @@
 
     <div class="small-note">
       Cloud mode: accounts and data are synced globally using Firebase.
-      Forgot password resets using your Recovery PIN.
+      Forgot password sends a password reset link to your email.
     </div>
 
     <div id="loginError" class="login-error"></div>
@@ -269,14 +269,7 @@
 
     <label>Password:</label>
     <input type="password" id="regPass" placeholder="Create a password" style="margin:8px 0 12px;" />
-
-    <label>Recovery PIN (4–8 digits):</label>
-    <input type="text" id="regPin" inputmode="numeric" placeholder="Used for password reset" style="margin:8px 0 6px;" />
-
-    <div class="small-note">
-      Keep the Recovery PIN safe. It’s required to reset your password.
-    </div>
-
+        
     <div id="regMsg" class="login-error" style="margin-top:12px;"></div>
 
     <div class="modal-buttons">
@@ -285,26 +278,29 @@
     </div>
   </div>
 </div>
-
-<!-- RESET MODAL -->
+<!-- RESET PASSWORD MODAL -->
 <div id="resetModal" class="modal auth-modal">
   <div class="modal-content">
     <div class="modal-header">Reset Password</div>
 
-    <label>Username:</label>
-    <input type="text" id="resetUser" placeholder="Enter your username" style="margin:8px 0 12px;" />
+    <label>Email:</label>
+    <input
+      type="email"
+      id="resetEmail"
+      placeholder="your@email.com"
+      style="margin:8px 0 12px;"
+    >
 
-    <label>Recovery PIN:</label>
-    <input type="text" id="resetPin" inputmode="numeric" placeholder="Enter your PIN" style="margin:8px 0 12px;" />
-
-    <label>New Password:</label>
-    <input type="password" id="resetNewPass" placeholder="Enter a new password" style="margin:8px 0 6px;" />
-
-    <div id="resetMsg" class="login-error" style="margin-top:12px;"></div>
+    <div id="resetMsg" class="login-error"></div>
 
     <div class="modal-buttons">
-      <button id="btnCancelReset" style="background:#444;" type="button">Cancel</button>
-      <button id="btnConfirmReset" class="btn-primary" type="button">Reset</button>
+      <button id="btnCancelReset" style="background:#444;">
+        Cancel
+      </button>
+
+      <button id="btnSendReset" class="btn-primary">
+        Send Reset Link
+      </button>
     </div>
   </div>
 </div>
@@ -1256,12 +1252,7 @@ sendPasswordResetEmail
   function fb() { return window.__fb; }
   function api() { return window.__fb.api; }
 
-  function unameToEmail(username) {
-    const safe = (username || "").trim().toLowerCase().replace(/[^a-z0-9._-]/g, "_");
-    return `${safe}@equip-hours.local`;
-  }
-
-  function showLogin(message = "", color = "#ffdd88") {
+    function showLogin(message = "", color = "#ffdd88") {
     document.getElementById("loginRoot").style.display = "flex";
     document.getElementById("appRoot").style.display = "none";
 
@@ -1299,7 +1290,7 @@ sendPasswordResetEmail
       usersMsg.textContent = "";
 
       if (!u || !p) {
-        usersMsg.textContent = "Enter username and password.";
+        usersMsg.textContent = "Enter email and password.";
         usersMsg.style.color = "#ffdd88";
         return;
       }
@@ -1318,7 +1309,7 @@ sendPasswordResetEmail
 
         showApp();
       } catch {
-        usersMsg.textContent = "Invalid username or password.";
+        usersMsg.textContent = "Invalid email or password.";
         usersMsg.style.color = "#ffdd88";
       }
     };
@@ -1329,6 +1320,7 @@ sendPasswordResetEmail
     document.getElementById("loginUser").addEventListener("keydown", (e) => {
       if (e.key === "Enter") document.getElementById("btnLogin").click();
     });
+    
 
     // REGISTER
     const registerModal = document.getElementById("registerModal");
@@ -1336,7 +1328,6 @@ sendPasswordResetEmail
       document.getElementById("regUser").value = "";
       document.getElementById("regEmail").value = "";
       document.getElementById("regPass").value = "";
-      document.getElementById("regPin").value  = "";
       document.getElementById("regMsg").textContent = "";
       registerModal.style.display = "flex";
       setTimeout(() => document.getElementById("regUser").focus(), 50);
@@ -1347,7 +1338,6 @@ sendPasswordResetEmail
       const u = document.getElementById("regUser").value.trim();
       const email = document.getElementById("regEmail").value.trim();
       const p = document.getElementById("regPass").value;
-      const pin = document.getElementById("regPin").value.trim();
       const msg = document.getElementById("regMsg");
 
       if (!u || u.length < 3) { msg.textContent = "Username must be at least 3 characters."; return; }
@@ -1356,9 +1346,7 @@ sendPasswordResetEmail
   return;
 }
       if (!p || p.length < 4) { msg.textContent = "Password must be at least 4 characters."; return; }
-      if (!/^\d{4,8}$/.test(pin)) { msg.textContent = "Recovery PIN must be 4–8 digits."; return; }
-
-      try {
+            try {
         const cred = await api().createUserWithEmailAndPassword(
   fb().auth,
   email,
@@ -1368,9 +1356,8 @@ sendPasswordResetEmail
 
         // store pin in RTDB under /equipHoursPins/<uid>
         await api().set(
-  api().ref(fb().db, `equipHoursPins/${uid}`),
+  api().ref(fb().db, `users/${uid}`),
   {
-    pin,
     username: u,
     email
   }
@@ -1385,57 +1372,65 @@ sendPasswordResetEmail
         msg.textContent = "Registration failed (user may already exist).";
       }
     };
-
-    // RESET (uses Cloud Function resetPasswordWithPin)
+ 
+    window.addEventListener("click", (e) => {
+  if (e.target === registerModal)
+    registerModal.style.display = "none";
+});
     const resetModal = document.getElementById("resetModal");
-document.getElementById("btnOpenReset").onclick = async () => {
 
-  const email = prompt("Enter your registered email");
+document.getElementById("btnOpenReset").onclick = () => {
+  document.getElementById("resetEmail").value = "";
+  document.getElementById("resetMsg").textContent = "";
+  resetModal.style.display = "flex";
+};
 
-  if (!email) return;
+document.getElementById("btnCancelReset").onclick = () => {
+  resetModal.style.display = "none";
+};
+
+document.getElementById("btnSendReset").onclick = async () => {
+  const email =
+    document.getElementById("resetEmail").value.trim();
+
+  const msg =
+    document.getElementById("resetMsg");
+
+  if (!email) {
+    msg.textContent = "Enter your email.";
+    return;
+  }
 
   try {
-
-    await fb().api.sendPasswordResetEmail(
+    await api().sendPasswordResetEmail(
       fb().auth,
       email
     );
 
-    alert("Password reset link sent to your email.");
+    msg.style.color = "#44cc88";
+msg.textContent =
+  "Password reset link sent to your email.";
 
-  } catch (err) {
+setTimeout(() => {
+  resetModal.style.display = "none";
+}, 3000);
+ } catch (err) {
+  msg.style.color = "#ff5555";
 
-    alert("Unable to send reset link.");
-
+  if (err.code === "auth/user-not-found") {
+    msg.textContent = "No account found with this email.";
+  } else if (err.code === "auth/invalid-email") {
+    msg.textContent = "Invalid email address.";
+  } else {
+    msg.textContent = err.message;
   }
+}
 };
-    document.getElementById("btnCancelReset").onclick = () => resetModal.style.display = "none";
 
-    document.getElementById("btnConfirmReset").onclick = async () => {
-      const u = document.getElementById("resetUser").value.trim();
-      const pin = document.getElementById("resetPin").value.trim();
-      const newPass = document.getElementById("resetNewPass").value;
-      const msg = document.getElementById("resetMsg");
-
-      if (!u) { msg.textContent = "User not found."; return; }
-      if (!/^\d{4,8}$/.test(pin)) { msg.textContent = "Invalid Recovery PIN."; return; }
-      if (!newPass || newPass.length < 4) { msg.textContent = "New password must be at least 4 characters."; return; }
-
-      try {
-        const fn = api().httpsCallable(fb().functions, "resetPasswordWithPin");
-        await fn({ username: u, pin, newPassword: newPass });
-
-        resetModal.style.display = "none";
-        showLogin("Password reset successful. Please login.", "#44cc88");
-      } catch {
-        msg.textContent = "Reset failed. Check username/PIN.";
-      }
-    };
-
-    window.addEventListener("click", (e) => {
-      if (e.target === registerModal) registerModal.style.display = "none";
-      if (e.target === resetModal) resetModal.style.display = "none";
-    });
+window.addEventListener("click", (e) => {
+  if (e.target === resetModal)
+    resetModal.style.display = "none";
+});
   }
 
   // Wait Firebase SDK ready
