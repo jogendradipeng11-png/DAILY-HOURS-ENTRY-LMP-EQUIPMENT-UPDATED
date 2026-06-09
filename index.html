@@ -72,7 +72,7 @@
     font-size: 1.05rem;
     color: #aaccff;
   }
-  input[type="number"], input[type="text"], input[type="date"], input[type="file"], select, input[type="password"] {
+  input[type="number"], input[type="text"], input[type="date"], input[type="file"], select, input[type="password"], input[type="email"] {
     width: 100%;
     max-width: 220px;
     padding: 8px;
@@ -194,7 +194,7 @@
     line-height: 1.35;
   }
   .auth-modal .modal-content { max-width: 520px; }
-  .auth-modal input[type="password"], .auth-modal input[type="text"] { max-width: 100%; }
+  .auth-modal input[type="password"], .auth-modal input[type="text"], .auth-modal input[type="email"] { max-width: 100%; }
 
   #appRoot { display: none; }
 
@@ -213,97 +213,87 @@
 
 <body>
 
-<!-- LOGIN -->
 <div id="loginRoot" class="flex">
-  <div class="login-card">
+  <form id="loginForm" class="login-card" onsubmit="return false;">
     <h1 class="login-title">Sign in</h1>
     <p class="login-subtitle">Please log in to access the Equipment Hours Log.</p>
 
     <div class="login-row">
-      <label for="loginUser">Username</label>
-      <input type="text" id="loginUser" autocomplete="username" placeholder="Enter username" />
+      <label for="loginEmail">Email Address</label>
+      <input type="email" id="loginEmail" autocomplete="email" placeholder="Enter your email" required />
     </div>
 
     <div class="login-row">
       <label for="loginPass">Password</label>
-      <input type="password" id="loginPass" autocomplete="current-password" placeholder="Enter password" />
+      <input type="password" id="loginPass" autocomplete="current-password" placeholder="Enter password" required />
     </div>
 
-    <!-- ✅ Save password / Remember me -->
     <div class="login-row" style="display:flex; align-items:center; gap:10px; margin-top:6px;">
       <input type="checkbox" id="rememberMe" style="width:auto; max-width:none;">
       <label for="rememberMe" style="margin:0; font-weight:600; color:#c0d0ff;">Remember me</label>
     </div>
 
     <div class="login-actions">
-      <button class="btn-primary" id="btnLogin" type="button">Login</button>
+      <button class="btn-primary" id="btnLogin" type="submit">Login</button>
     </div>
 
     <div class="login-links">
-      <button class="link-btn" id="btnOpenRegister" type="button">Register user</button>
+      <button class="link-btn" id="btnOpenRegister" type="button">Create new account</button>
       <button class="link-btn" id="btnOpenReset" type="button">Forgot password?</button>
     </div>
 
     <div class="small-note">
       Cloud mode: accounts and data are synced globally using Firebase.
-      Forgot password resets using your Recovery PIN.
+      Forgot password link will send a secure reset URL directly to your email.
     </div>
 
     <div id="loginError" class="login-error"></div>
-  </div>
+  </form>
 </div>
 
-<!-- REGISTER MODAL -->
 <div id="registerModal" class="modal auth-modal">
-  <div class="modal-content">
-    <div class="modal-header">Register New User</div>
+  <form id="regForm" class="modal-content" onsubmit="return false;">
+    <div class="modal-header">Register New Account</div>
 
-    <label>Username:</label>
-    <input type="text" id="regUser" placeholder="e.g. supervisor1" style="margin:8px 0 12px;" />
+    <label for="regEmail">Email Address:</label>
+    <input type="email" id="regEmail" autocomplete="email" placeholder="e.g. supervisor@company.com" style="margin:8px 0 12px;" required />
 
-    <label>Password:</label>
-    <input type="password" id="regPass" placeholder="Create a password" style="margin:8px 0 12px;" />
-
-    <label>Recovery PIN (4–8 digits):</label>
-    <input type="text" id="regPin" inputmode="numeric" placeholder="Used for password reset" style="margin:8px 0 6px;" />
+    <label for="regPass">Password:</label>
+    <input type="password" id="regPass" autocomplete="new-password" placeholder="Create a password (min 6 characters)" style="margin:8px 0 12px;" required />
 
     <div class="small-note">
-      Keep the Recovery PIN safe. It’s required to reset your password.
+      Please verify your email syntax. Your profile data will sync immediately with this identity string.
     </div>
 
     <div id="regMsg" class="login-error" style="margin-top:12px;"></div>
 
     <div class="modal-buttons">
       <button id="btnCancelRegister" style="background:#444;" type="button">Cancel</button>
-      <button id="btnConfirmRegister" class="btn-primary" type="button">Create Account</button>
+      <button id="btnConfirmRegister" class="btn-primary" type="submit">Create Account</button>
     </div>
-  </div>
+  </form>
 </div>
 
-<!-- RESET MODAL -->
 <div id="resetModal" class="modal auth-modal">
-  <div class="modal-content">
+  <form id="resetForm" class="modal-content" onsubmit="return false;">
     <div class="modal-header">Reset Password</div>
 
-    <label>Username:</label>
-    <input type="text" id="resetUser" placeholder="Enter your username" style="margin:8px 0 12px;" />
+    <label for="resetEmail">Email Address:</label>
+    <input type="email" id="resetEmail" placeholder="Enter your registered email" style="margin:8px 0 12px;" required />
 
-    <label>Recovery PIN:</label>
-    <input type="text" id="resetPin" inputmode="numeric" placeholder="Enter your PIN" style="margin:8px 0 12px;" />
-
-    <label>New Password:</label>
-    <input type="password" id="resetNewPass" placeholder="Enter a new password" style="margin:8px 0 6px;" />
+    <div class="small-note">
+      We will dispatch a native Firebase authentication email to your inbox containing a secure credential replacement link.
+    </div>
 
     <div id="resetMsg" class="login-error" style="margin-top:12px;"></div>
 
     <div class="modal-buttons">
       <button id="btnCancelReset" style="background:#444;" type="button">Cancel</button>
-      <button id="btnConfirmReset" class="btn-primary" type="button">Reset</button>
+      <button id="btnConfirmReset" class="btn-primary" type="submit">Send Reset Link</button>
     </div>
-  </div>
+  </form>
 </div>
 
-<!-- APP -->
 <div id="appRoot">
   <div class="card">
     <h1>Equipment Hours Log</h1>
@@ -320,13 +310,11 @@
         <input type="file" id="fileImportCSV" accept=".csv" style="display:none;" />
       </label>
 
-      <!-- ✅ Sign Out -->
       <button class="btn btn-danger" id="btnSignOut" type="button">Sign out</button>
     </div>
 
     <div id="toast" style="margin:12px 0; min-height:24px; color:#ffdd88;"></div>
 
-    <!-- Daily view -->
     <div class="sheet">
       <table id="dailyTable">
         <thead>
@@ -347,7 +335,6 @@
 
     <hr style="border-color:rgba(255,255,255,0.1); margin:24px 0;" />
 
-    <!-- Month grid -->
     <div class="sheet">
       <table id="monthTable">
         <thead id="monthHead"></thead>
@@ -356,7 +343,6 @@
     </div>
   </div>
 
-  <!-- Add Equipment Modal -->
   <div id="addModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">Add New Equipment</div>
@@ -376,16 +362,13 @@
     </div>
   </div>
 
-  <!-- ────────────────────────────────────────────────
-       FIREBASE LOADER (Module CDN)
-       ──────────────────────────────────────────────── -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
     import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
     import {
       getAuth, onAuthStateChanged,
       signInWithEmailAndPassword, createUserWithEmailAndPassword,
-      signOut, setPersistence,
+      signOut, setPersistence, sendPasswordResetEmail,
       browserLocalPersistence, browserSessionPersistence
     } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
     import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-functions.js";
@@ -414,7 +397,7 @@
         ref, get, set,
         onAuthStateChanged,
         signInWithEmailAndPassword, createUserWithEmailAndPassword,
-        signOut,
+        signOut, sendPasswordResetEmail,
         setPersistence, browserLocalPersistence, browserSessionPersistence,
         httpsCallable
       }
@@ -435,11 +418,11 @@
   /**
    * monthData format (month-aware):
    * {
-   *   "YYYY-MM": {
-   *      1: { "gen1": 5, "gen1_initial": 100, "gen1_final": 105, "gen1_serviceDate": "2026-02-01", ... },
-   *      2: { ... }
-   *   },
-   *   "YYYY-MM": { ... }
+   * "YYYY-MM": {
+   * 1: { "gen1": 5, "gen1_initial": 100, "gen1_final": 105, "gen1_serviceDate": "2026-02-01", ... },
+   * 2: { ... }
+   * },
+   * "YYYY-MM": { ... }
    * }
    */
   let monthData = {};
@@ -468,7 +451,7 @@
     if (!r) {
       if (!silent) showToast("Not signed in", "#ffaa44");
       return;
-    }
+    </div>
 
     const state = { equipmentGroups, monthData, currentDate, updatedAt: Date.now() };
 
@@ -1239,18 +1222,12 @@
   </script>
 </div>
 
-<!-- AUTH SCRIPT (Firebase Auth + PIN stored in RTDB) -->
 <script>
 (() => {
-  const REMEMBER_USER_KEY = "equipHoursRememberUser";
+  const REMEMBER_USER_KEY = "equipHoursRememberEmail";
 
   function fb() { return window.__fb; }
   function api() { return window.__fb.api; }
-
-  function unameToEmail(username) {
-    const safe = (username || "").trim().toLowerCase().replace(/[^a-z0-9._-]/g, "_");
-    return `${safe}@equip-hours.local`;
-  }
 
   function showLogin(message = "", color = "#ffdd88") {
     document.getElementById("loginRoot").style.display = "flex";
@@ -1260,12 +1237,12 @@
     err.textContent = message;
     err.style.color = color;
 
-    const rememberedUser = localStorage.getItem(REMEMBER_USER_KEY) || "";
-    document.getElementById("loginUser").value = rememberedUser;
+    const rememberedEmail = localStorage.getItem(REMEMBER_USER_KEY) || "";
+    document.getElementById("loginEmail").value = rememberedEmail;
     document.getElementById("loginPass").value = "";
-    document.getElementById("rememberMe").checked = !!rememberedUser;
+    document.getElementById("rememberMe").checked = !!rememberedEmail;
 
-    setTimeout(() => document.getElementById("loginUser").focus(), 50);
+    setTimeout(() => document.getElementById("loginEmail").focus(), 50);
   }
 
   function showApp() {
@@ -1282,15 +1259,15 @@
 
     // LOGIN
     document.getElementById("btnLogin").onclick = async () => {
-      const u = document.getElementById("loginUser").value.trim();
+      const email = document.getElementById("loginEmail").value.trim();
       const p = document.getElementById("loginPass").value;
       const remember = document.getElementById("rememberMe")?.checked;
 
       const usersMsg = document.getElementById("loginError");
       usersMsg.textContent = "";
 
-      if (!u || !p) {
-        usersMsg.textContent = "Enter username and password.";
+      if (!email || !p) {
+        usersMsg.textContent = "Enter your email and password.";
         usersMsg.style.color = "#ffdd88";
         return;
       }
@@ -1301,96 +1278,80 @@
           remember ? api().browserLocalPersistence : api().browserSessionPersistence
         );
 
-        const email = unameToEmail(u);
         await api().signInWithEmailAndPassword(fb().auth, email, p);
 
-        if (remember) localStorage.setItem(REMEMBER_USER_KEY, u);
+        if (remember) localStorage.setItem(REMEMBER_USER_KEY, email);
         else localStorage.removeItem(REMEMBER_USER_KEY);
 
         showApp();
-      } catch {
-        usersMsg.textContent = "Invalid username or password.";
+      } catch (error) {
+        let errorHint = "Invalid email or password.";
+        if (error.code === "auth/invalid-email") errorHint = "The email syntax is invalid.";
+        if (error.code === "auth/user-disabled") errorHint = "This user account has been disabled.";
+        usersMsg.textContent = errorHint;
         usersMsg.style.color = "#ffdd88";
       }
     };
 
-    document.getElementById("loginPass").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") document.getElementById("btnLogin").click();
-    });
-    document.getElementById("loginUser").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") document.getElementById("btnLogin").click();
-    });
-
     // REGISTER
     const registerModal = document.getElementById("registerModal");
     document.getElementById("btnOpenRegister").onclick = () => {
-      document.getElementById("regUser").value = "";
+      document.getElementById("regEmail").value = "";
       document.getElementById("regPass").value = "";
-      document.getElementById("regPin").value  = "";
       document.getElementById("regMsg").textContent = "";
       registerModal.style.display = "flex";
-      setTimeout(() => document.getElementById("regUser").focus(), 50);
+      setTimeout(() => document.getElementById("regEmail").focus(), 50);
     };
     document.getElementById("btnCancelRegister").onclick = () => registerModal.style.display = "none";
 
     document.getElementById("btnConfirmRegister").onclick = async () => {
-      const u = document.getElementById("regUser").value.trim();
+      const email = document.getElementById("regEmail").value.trim();
       const p = document.getElementById("regPass").value;
-      const pin = document.getElementById("regPin").value.trim();
       const msg = document.getElementById("regMsg");
 
-      if (!u || u.length < 3) { msg.textContent = "Username must be at least 3 characters."; return; }
-      if (!p || p.length < 4) { msg.textContent = "Password must be at least 4 characters."; return; }
-      if (!/^\d{4,8}$/.test(pin)) { msg.textContent = "Recovery PIN must be 4–8 digits."; return; }
+      if (!email) { msg.textContent = "A valid email address is required."; return; }
+      if (!p || p.length < 6) { msg.textContent = "Password must be at least 6 characters long."; return; }
 
       try {
-        const email = unameToEmail(u);
-        const cred = await api().createUserWithEmailAndPassword(fb().auth, email, p);
-        const uid = cred.user.uid;
-
-        // store pin in RTDB under /equipHoursPins/<uid>
-        await api().set(api().ref(fb().db, `equipHoursPins/${uid}`), { pin });
-
-        // sign out after register (same behavior as your old offline flow)
-        await api().signOut(fb().auth);
-
+        await api().createUserWithEmailAndPassword(fb().auth, email, p);
         registerModal.style.display = "none";
-        showLogin("User registered. You can login now.", "#44cc88");
-      } catch {
-        msg.textContent = "Registration failed (user may already exist).";
+        // User is automatically signed in by Firebase upon registration
+        showApp();
+        showToast("Account successfully registered!", "#44cc88");
+      } catch (error) {
+        let errorHint = "Registration failed.";
+        if (error.code === "auth/email-already-in-use") errorHint = "This email is already in use.";
+        if (error.code === "auth/invalid-email") errorHint = "The email syntax is invalid.";
+        if (error.code === "auth/weak-password") errorHint = "Password should be at least 6 characters.";
+        msg.textContent = errorHint;
       }
     };
 
-    // RESET (uses Cloud Function resetPasswordWithPin)
+    // RESET (Native Firebase Reset Email Link)
     const resetModal = document.getElementById("resetModal");
     document.getElementById("btnOpenReset").onclick = () => {
-      document.getElementById("resetUser").value = "";
-      document.getElementById("resetPin").value  = "";
-      document.getElementById("resetNewPass").value = "";
+      document.getElementById("resetEmail").value = "";
       document.getElementById("resetMsg").textContent = "";
       resetModal.style.display = "flex";
-      setTimeout(() => document.getElementById("resetUser").focus(), 50);
+      setTimeout(() => document.getElementById("resetEmail").focus(), 50);
     };
     document.getElementById("btnCancelReset").onclick = () => resetModal.style.display = "none";
 
     document.getElementById("btnConfirmReset").onclick = async () => {
-      const u = document.getElementById("resetUser").value.trim();
-      const pin = document.getElementById("resetPin").value.trim();
-      const newPass = document.getElementById("resetNewPass").value;
+      const email = document.getElementById("resetEmail").value.trim();
       const msg = document.getElementById("resetMsg");
 
-      if (!u) { msg.textContent = "User not found."; return; }
-      if (!/^\d{4,8}$/.test(pin)) { msg.textContent = "Invalid Recovery PIN."; return; }
-      if (!newPass || newPass.length < 4) { msg.textContent = "New password must be at least 4 characters."; return; }
+      if (!email) { msg.textContent = "Please enter an email address."; return; }
 
       try {
-        const fn = api().httpsCallable(fb().functions, "resetPasswordWithPin");
-        await fn({ username: u, pin, newPassword: newPass });
-
+        await api().sendPasswordResetEmail(fb().auth, email);
         resetModal.style.display = "none";
-        showLogin("Password reset successful. Please login.", "#44cc88");
-      } catch {
-        msg.textContent = "Reset failed. Check username/PIN.";
+        showLogin("Password reset link sent! Check your email inbox.", "#44cc88");
+      } catch (error) {
+        let errorHint = "Failed to dispatch reset email.";
+        if (error.code === "auth/invalid-email") errorHint = "The email syntax is invalid.";
+        if (error.code === "auth/user-not-found") errorHint = "No registered user found with this email.";
+        msg.textContent = errorHint;
       }
     };
 
