@@ -985,63 +985,71 @@ $("btnLoadDay").onclick = () => {
   };
 
 $("btnSaveAll").onclick = () => {
-  const dateStr = $("workDate").value || currentDate;
-  const { store: todayStore } = getDayStore(dateStr);
-  const nextDateStr = nextISODate(dateStr);
-  const { store: nextStore } = getDayStore(nextDateStr);
+    const dateStr = $("workDate").value || currentDate;
 
-  const rows = $("dailyBody").querySelectorAll("tr[data-eq]");
+    const { store: todayStore } = getDayStore(dateStr);
+    const nextDateStr = nextISODate(dateStr);
+    const { store: nextStore } = getDayStore(nextDateStr);
 
-  rows.forEach(row => {
-    const eq = row.dataset.eq;
-    const serviceInp = row.querySelector(".hr-service");
-    const serviceDateInp = row.querySelector(".hr-service-date");
-    const initInp = row.querySelector(".initial");
-    const finalInp = row.querySelector(".final");
+    const rows = $("dailyBody").querySelectorAll("tr[data-eq]");
 
-    const initDirty = initInp?.dataset.dirty === "1";
-    const finalDirty = finalInp?.dataset.dirty === "1";
-    const svcDirty = serviceInp?.dataset.dirty === "1";
-    const sdDirty = serviceDateInp?.dataset.dirty === "1";
+    rows.forEach(row => {
+      const eq = row.dataset.eq;
 
-    // Save current day
-    const worked = Number(row.querySelector(".worked").textContent) || 0;
-    todayStore[eq] = worked;
+      const serviceInp = row.querySelector(".hr-service");
+      const serviceDateInp = row.querySelector(".hr-service-date");
+      const initInp = row.querySelector(".initial");
+      const finalInp = row.querySelector(".final");
 
-    if (initDirty) {
-      const raw = initInp.value;
-      const num = raw === "" ? "" : Number(raw);
-      if (raw === "" || isNaN(num)) delete todayStore[eq + "_initial"];
-      else todayStore[eq + "_initial"] = num;
-      initInp.dataset.orig = initInp.value;
-      initInp.dataset.dirty = "";
-    }
+      const initDirty  = initInp?.dataset.dirty === "1";
+      const finalDirty = finalInp?.dataset.dirty === "1";
+      const svcDirty   = serviceInp?.dataset.dirty === "1";
+      const sdDirty    = serviceDateInp?.dataset.dirty === "1";
 
-    if (finalDirty) {
-      const raw = finalInp.value;
-      const num = raw === "" ? "" : Number(raw);
-      if (raw === "" || isNaN(num)) delete todayStore[eq + "_final"];
-      else todayStore[eq + "_final"] = num;
-      finalInp.dataset.orig = finalInp.value;
-      finalInp.dataset.dirty = "";
-    }
+      if (initDirty || finalDirty) {
+        const worked = Number(row.querySelector(".worked").textContent) || 0;
+        todayStore[eq] = worked;
+      }
 
-    if (svcDirty) {
-      const raw = serviceInp.value;
-      const num = raw === "" ? "" : Number(raw);
-      if (raw === "" || isNaN(num)) delete todayStore[eq + "_hrService"];
-      else todayStore[eq + "_hrService"] = num;
-      serviceInp.dataset.orig = serviceInp.value;
-      serviceInp.dataset.dirty = "";
-    }
+      if (initDirty) {
+        const raw = initInp.value;
+        const num = raw === "" ? "" : Number(raw);
+        if (raw === "" || isNaN(num)) delete todayStore[eq + "_initial"];
+        else todayStore[eq + "_initial"] = num;
 
-    if (sdDirty) {
-      const sd = serviceDateInp.value || "";
-      if (sd) todayStore[eq + "_serviceDate"] = sd;
-      else delete todayStore[eq + "_serviceDate"];
-      serviceDateInp.dataset.orig = serviceDateInp.value;
-      serviceDateInp.dataset.dirty = "";
-    }
+        initInp.dataset.orig = initInp.value;
+        initInp.dataset.dirty = "";
+      }
+
+      if (finalDirty) {
+        const raw = finalInp.value;
+        const num = raw === "" ? "" : Number(raw);
+        if (raw === "" || isNaN(num)) delete todayStore[eq + "_final"];
+        else todayStore[eq + "_final"] = num;
+
+        finalInp.dataset.orig = finalInp.value;
+        finalInp.dataset.dirty = "";
+      }
+
+      if (svcDirty) {
+        const raw = serviceInp.value;
+        const num = raw === "" ? "" : Number(raw);
+        if (raw === "" || isNaN(num)) delete todayStore[eq + "_hrService"];
+        else todayStore[eq + "_hrService"] = num;
+
+        serviceInp.dataset.orig = serviceInp.value;
+        serviceInp.dataset.dirty = "";
+      }
+
+      if (sdDirty) {
+        const sd = serviceDateInp.value || "";
+        if (sd) todayStore[eq + "_serviceDate"] = sd;
+        else delete todayStore[eq + "_serviceDate"];
+
+        serviceDateInp.dataset.orig = serviceDateInp.value;
+        serviceDateInp.dataset.dirty = "";
+      }
+
       // Copy Final → Next day Initial (if empty)
       const finalVal = Number(finalInp.value) || 0;
       if (nextStore[eq + "_initial"] === undefined) {
@@ -1065,10 +1073,10 @@ $("btnSaveAll").onclick = () => {
   $("btnSignOut").onclick = () => {
     if (window.__fb?.api?.signOut) window.__fb.api.signOut(window.__fb.auth);
   };
-  // Refresh current view
-  renderDailyEntry();
+
+  // Base render (before login)
   renderMonthGrid();
-};
+  renderDailyEntry();
 
 // Auth Script
 (() => {
