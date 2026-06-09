@@ -229,13 +229,13 @@
     </div>
     <div class="small-note">
       Cloud synced worldwide.<br>
-      All users can now edit.
+      All users have full edit access.
     </div>
     <div id="loginError" class="login-error"></div>
   </div>
 </div>
 
-<!-- REGISTER MODAL -->
+<!-- REGISTER & RESET MODALS (unchanged) -->
 <div id="registerModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">Register New User</div>
@@ -252,7 +252,6 @@
   </div>
 </div>
 
-<!-- RESET MODAL -->
 <div id="resetModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">Forgot Password</div>
@@ -412,7 +411,7 @@ function showToast(msg, color = "#88ffaa") {
   setTimeout(() => t.style.opacity = "0", 3400);
 }
 
-// ==================== MONTH GRID ====================
+// ==================== MONTH & DAILY ====================
 function getSelectedMonthInfo() {
   const dateStr = $("workDate")?.value || currentDate || "";
   const [y, m] = dateStr.split("-").slice(0,2).map(n => parseInt(n));
@@ -457,7 +456,6 @@ function renderMonthGrid() {
   body.innerHTML = htmlBody;
 }
 
-// ==================== DAILY TABLE ====================
 function renderDailyEntry() {
   const body = $("dailyBody");
   const date = $("workDate").value || currentDate;
@@ -484,11 +482,10 @@ function renderDailyEntry() {
 function calculateWorked(row) {
   const initial = parseFloat(row.querySelector(".initial").value) || 0;
   const final = parseFloat(row.querySelector(".final").value) || 0;
-  const workedCell = row.querySelector(".worked");
-  workedCell.textContent = (final - initial).toFixed(1);
+  row.querySelector(".worked").textContent = (final - initial).toFixed(1);
 }
 
-// ==================== SAVE / LOAD ====================
+// ==================== SAVE / LOAD DAY ====================
 function saveDay() {
   const date = $("workDate").value;
   if (!date) return showToast("Select a date first", "#ffaa44");
@@ -520,7 +517,6 @@ function loadDay() {
   if (!date) return;
 
   renderDailyEntry();
-
   const dayNum = parseInt(date.split("-")[2]);
   const mStore = ensureMonthStore(getSelectedMonthInfo().monthKey);
   const dayData = mStore[dayNum] || {};
@@ -529,12 +525,61 @@ function loadDay() {
     const eq = row.dataset.eq;
     const serviceInput = row.querySelector(".hr-service");
     const serviceDateInput = row.querySelector(".hr-service-date");
-
     if (dayData[eq] !== undefined) serviceInput.value = dayData[eq];
     if (dayData[eq + "_serviceDate"]) serviceDateInput.value = dayData[eq + "_serviceDate"];
   });
 
   showToast("Day loaded", "#88ffaa");
+}
+
+// ==================== FULL CSV IMPORT ====================
+function importMonthlyCSV(csvText) {
+  const lines = csvText.trim().split("\n");
+  if (lines.length < 2) return showToast("Invalid CSV file", "#ffaa44");
+
+  const headers = lines[0].split(",").map(h => h.trim());
+  const { monthKey } = getSelectedMonthInfo();
+  const mStore = ensureMonthStore(monthKey);
+
+  let importedCount = 0;
+
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const values = lines[i].split(",").map(v => v.trim());
+    const eq = values[0];
+    if (!eq) continue;
+
+    // Find day columns (numeric headers)
+    for (let col = 1; col < headers.length; col++) {
+      const header = headers[col];
+      if (!isNaN(parseInt(header)) && parseInt(header) > 0) {
+        const day = parseInt(header);
+        const val = values[col];
+        if (val !== "" && !isNaN(parseFloat(val))) {
+          if (!mStore[day]) mStore[day] = {};
+          mStore[day][eq] = parseFloat(val);
+        }
+      }
+    }
+
+    // Service info (usually at the end)
+    const serviceDateCol = headers.indexOf("Hr Service Date");
+    const hrServiceCol = headers.indexOf("Hr Service");
+    if (serviceDateCol !== -1 && values[serviceDateCol]) {
+      if (!mStore[1]) mStore[1] = {};
+      mStore[1][eq + "_serviceDate"] = values[serviceDateCol];
+    }
+    if (hrServiceCol !== -1 && values[hrServiceCol]) {
+      if (!mStore[1]) mStore[1] = {};
+      mStore[1][eq + "_hrService"] = parseFloat(values[hrServiceCol]);
+    }
+
+    importedCount++;
+  }
+
+  saveAppState();
+  renderMonthGrid();
+  showToast(`Successfully imported data for ${importedCount} equipment`, "#44cc88");
 }
 
 // ==================== LISTENERS ====================
@@ -560,11 +605,16 @@ function attachListeners() {
     showToast("Equipment added successfully", "#44cc88");
   };
 
+  // Full Import
   $("fileImportCSV").onchange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    showToast("Import feature coming soon", "#ffaa44");
-    e.target.value = "";
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      importMonthlyCSV(ev.target.result);
+      e.target.value = ""; // reset input
+    };
+    reader.readAsText(file);
   };
 
   $("btnExportCSV").onclick = exportMonthlyCSV;
@@ -610,10 +660,8 @@ function exportMonthlyCSV() {
   allEquip.forEach(eq => {
     let total = 0;
     let hourLast = "";
-    let latestServiceDate = "";
-    let latestServiceHours = "";
-
     const row = [eq];
+
     for (let d = 1; d <= DAYS; d++) {
       const val = mStore[d]?.[eq];
       if (val === undefined || val === null || val === "") {
@@ -643,7 +691,7 @@ function exportMonthlyCSV() {
   link.download = `equipment-hours-${monthKey}.csv`;
   link.click();
   URL.revokeObjectURL(url);
-  showToast("Monthly CSV exported", "#44cc88");
+  showToast("Monthly CSV exported successfully", "#44cc88");
 }
 
 // ==================== AUTH ====================
@@ -667,7 +715,7 @@ function exportMonthlyCSV() {
       renderDailyEntry();
       renderMonthGrid();
       attachListeners();
-      showToast("All users have full edit access", "#44cc88");
+      showToast("Welcome! Full edit access enabled.", "#44cc88");
     });
   }
 
@@ -704,7 +752,7 @@ function exportMonthlyCSV() {
       } catch { $("regMsg").textContent = "Registration failed"; }
     };
 
-    $("btnOpenReset").onclick = () => { $("resetModal").style.display = "flex"; };
+    $("btnOpenReset").onclick = () => $("resetModal").style.display = "flex";
     $("btnCancelReset").onclick = () => $("resetModal").style.display = "none";
     $("btnConfirmReset").onclick = async () => {
       const u = $("resetUser").value.trim().toLowerCase();
