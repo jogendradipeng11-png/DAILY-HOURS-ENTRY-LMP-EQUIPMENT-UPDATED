@@ -261,6 +261,12 @@
     <label>Username:</label>
     <input type="text" id="regUser" placeholder="e.g. supervisor1" style="margin:8px 0 12px;" />
 
+    <label>Email:</label>
+<input type="email"
+       id="regEmail"
+       placeholder="your@email.com"
+       style="margin:8px 0 12px;" />
+
     <label>Password:</label>
     <input type="password" id="regPass" placeholder="Create a password" style="margin:8px 0 12px;" />
 
@@ -382,12 +388,14 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
     import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
-    import {
-      getAuth, onAuthStateChanged,
-      signInWithEmailAndPassword, createUserWithEmailAndPassword,
-      signOut, setPersistence,
-      browserLocalPersistence, browserSessionPersistence
-    } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+   import {
+  getAuth, onAuthStateChanged,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  signOut, setPersistence,
+  browserLocalPersistence, browserSessionPersistence,
+  sendPasswordResetEmail
+} from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+    
     import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-functions.js";
 
     // ✅ REPLACE WITH YOUR FIREBASE CONFIG (include databaseURL)
@@ -416,7 +424,8 @@
         signInWithEmailAndPassword, createUserWithEmailAndPassword,
         signOut,
         setPersistence, browserLocalPersistence, browserSessionPersistence,
-        httpsCallable
+        httpsCallable,
+sendPasswordResetEmail
       }
     };
 
@@ -1325,6 +1334,7 @@
     const registerModal = document.getElementById("registerModal");
     document.getElementById("btnOpenRegister").onclick = () => {
       document.getElementById("regUser").value = "";
+      document.getElementById("regEmail").value = "";
       document.getElementById("regPass").value = "";
       document.getElementById("regPin").value  = "";
       document.getElementById("regMsg").textContent = "";
@@ -1335,21 +1345,36 @@
 
     document.getElementById("btnConfirmRegister").onclick = async () => {
       const u = document.getElementById("regUser").value.trim();
+      const email = document.getElementById("regEmail").value.trim();
       const p = document.getElementById("regPass").value;
       const pin = document.getElementById("regPin").value.trim();
       const msg = document.getElementById("regMsg");
 
       if (!u || u.length < 3) { msg.textContent = "Username must be at least 3 characters."; return; }
+      if (!email) {
+  msg.textContent = "Email is required.";
+  return;
+}
       if (!p || p.length < 4) { msg.textContent = "Password must be at least 4 characters."; return; }
       if (!/^\d{4,8}$/.test(pin)) { msg.textContent = "Recovery PIN must be 4–8 digits."; return; }
 
       try {
-        const email = unameToEmail(u);
-        const cred = await api().createUserWithEmailAndPassword(fb().auth, email, p);
+        const cred = await api().createUserWithEmailAndPassword(
+  fb().auth,
+  email,
+  p
+);
         const uid = cred.user.uid;
 
         // store pin in RTDB under /equipHoursPins/<uid>
-        await api().set(api().ref(fb().db, `equipHoursPins/${uid}`), { pin });
+        await api().set(
+  api().ref(fb().db, `equipHoursPins/${uid}`),
+  {
+    pin,
+    username: u,
+    email
+  }
+);
 
         // sign out after register (same behavior as your old offline flow)
         await api().signOut(fb().auth);
@@ -1363,14 +1388,27 @@
 
     // RESET (uses Cloud Function resetPasswordWithPin)
     const resetModal = document.getElementById("resetModal");
-    document.getElementById("btnOpenReset").onclick = () => {
-      document.getElementById("resetUser").value = "";
-      document.getElementById("resetPin").value  = "";
-      document.getElementById("resetNewPass").value = "";
-      document.getElementById("resetMsg").textContent = "";
-      resetModal.style.display = "flex";
-      setTimeout(() => document.getElementById("resetUser").focus(), 50);
-    };
+document.getElementById("btnOpenReset").onclick = async () => {
+
+  const email = prompt("Enter your registered email");
+
+  if (!email) return;
+
+  try {
+
+    await fb().api.sendPasswordResetEmail(
+      fb().auth,
+      email
+    );
+
+    alert("Password reset link sent to your email.");
+
+  } catch (err) {
+
+    alert("Unable to send reset link.");
+
+  }
+};
     document.getElementById("btnCancelReset").onclick = () => resetModal.style.display = "none";
 
     document.getElementById("btnConfirmReset").onclick = async () => {
