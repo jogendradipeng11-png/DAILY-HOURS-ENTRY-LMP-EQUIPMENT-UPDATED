@@ -367,6 +367,7 @@
   </script>
 
   <script>
+  // ==================== DATA & CORE FUNCTIONS ====================
   const equipmentGroups = [
     { name: "Generators", items: ["gen1", "gen2", "gen3", "gen4", "gen5"] },
     { name: "Compressors & Lighting", items: ["comp", "tower light"] }
@@ -380,90 +381,196 @@
 
   function showToast(msg, color = "#88ffaa") {
     const t = $("toast");
-    t.textContent = msg; t.style.color = color; t.style.opacity = "1";
+    t.textContent = msg;
+    t.style.color = color;
+    t.style.opacity = "1";
     setTimeout(() => t.style.opacity = "0", 3400);
   }
 
-  function getFlatEquipments() { return equipmentGroups.flatMap(g => g.items); }
+  function getFlatEquipments() {
+    return equipmentGroups.flatMap(g => g.items);
+  }
 
   function getSelectedMonthInfo() {
     const dateStr = $("workDate").value || currentDate;
-    const [y, m] = dateStr.split("-").slice(0,2).map(Number);
+    const [y, m] = dateStr.split("-").slice(0,2).map(n => parseInt(n));
     const year = y || new Date().getFullYear();
-    const month = m || new Date().getMonth()+1;
+    const month = m || (new Date().getMonth() + 1);
     const daysInMonth = new Date(year, month, 0).getDate();
-    const monthKey = `${year}-${String(month).padStart(2,'0')}`;
-    return {year, month, monthKey, daysInMonth};
+    const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+    return { year, month, monthKey, daysInMonth };
   }
 
-  function ensureMonthStore(mk) { if(!monthData[mk]) monthData[mk]={}; return monthData[mk]; }
+  function ensureMonthStore(monthKey) {
+    if (!monthData[monthKey]) monthData[monthKey] = {};
+    return monthData[monthKey];
+  }
+
   function getDayStore(dateStr) {
     const mk = dateStr.slice(0,7);
     const dn = parseInt(dateStr.slice(8,10));
     const mStore = ensureMonthStore(mk);
-    if(!mStore[dn]) mStore[dn] = {};
-    return {store: mStore[dn], monthStore: mStore};
+    if (!mStore[dn]) mStore[dn] = {};
+    return { store: mStore[dn], monthStore: mStore };
   }
 
   function saveAppState() {
     const uid = fb().auth.currentUser?.uid;
-    if(!uid) return;
-    const state = {equipmentGroups, monthData, currentDate, updatedAt: Date.now()};
+    if (!uid) return;
+    const state = { equipmentGroups, monthData, currentDate, updatedAt: Date.now() };
     fb().api.set(fb().api.ref(fb().db, `equipHoursState/${uid}`), state);
   }
 
   async function loadAppState() {
     const uid = fb().auth.currentUser?.uid;
-    if(!uid) return false;
+    if (!uid) return false;
     try {
       const snap = await fb().api.get(fb().api.ref(fb().db, `equipHoursState/${uid}`));
-      if(snap.exists()) {
+      if (snap.exists()) {
         const s = snap.val();
-        if(s.monthData) monthData = s.monthData;
-        if(s.currentDate) currentDate = s.currentDate;
+        if (s.monthData) monthData = s.monthData;
+        if (s.currentDate) currentDate = s.currentDate;
         return true;
       }
-    } catch(e){}
+    } catch(e) {}
     return false;
   }
 
-  function renderMonthGrid() {
-    const {monthKey, daysInMonth} = getSelectedMonthInfo();
-    const DAYS = Math.min(daysInMonth,31);
+  // ==================== CSV EXPORT & IMPORT ====================
+  function exportMonthlyCSV() {
+    const allEquip = getFlatEquipments();
+    if (allEquip.length === 0) return showToast("No equipment", "#ffaa44");
+
+    const { year, monthName, daysInMonth, monthKey } = getSelectedMonthInfo();
+    const DAYS = Math.min(daysInMonth, 31);
     const mStore = ensureMonthStore(monthKey);
-    let html = `<tr><th class="sticky-left">Equipment</th>`;
-    for(let d=1;d<=DAYS;d++) html += `<th>${d}</th>`;
-    html += `<th class="total">Total</th></tr>`;
-    $("monthHead").innerHTML = html;
+
+    let headers = ["Equipment"];
+    for (let d = 1; d <= DAYS; d++) headers.push(String(d));
+    headers.push("Total", "HourLast", "Hr Service Date", "Hr Service");
+
+    let csv = headers.join(",") + "\n";
+
+    allEquip.forEach(eq => {
+      let total = 0;
+      let hourLast = "";
+      const row = [eq];
+      for (let d = 1; d <= DAYS; d++) {
+        const val = mStore[d]?.[eq];
+        row.push(val !== undefined ? val : "");
+        if (val) {
+          total += Number(val);
+          hourLast = val;
+        }
+      }
+      row.push(total.toFixed(1));
+      row.push(hourLast);
+      row.push(mStore[1]?.[eq + "_serviceDate"] || "");
+      row.push(mStore[1]?.[eq + "_hrService"] || "");
+      csv += row.join(",") + "\n";
+    });
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `equipment-hours-${monthName.toLowerCase()}-${year}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("CSV Exported", "#44cc88");
+  }
+
+  function importMonthlyCSV(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      const { monthKey } = getSelectedMonthInfo();
+      const mStore = ensureMonthStore(monthKey);
+
+      const headers = lines[0].split(",");
+      const dayCols = [];
+      for (let i = 1; i < headers.length; i++) {
+        const day = parseInt(headers[i]);
+        if (day) dayCols.push({idx: i, day});
+      }
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(",");
+        const eq = cols[0].trim();
+        if (!getFlatEquipments().includes(eq)) continue;
+
+        dayCols.forEach(({idx, day}) => {
+          const val = cols[idx].trim();
+          if (!mStore[day]) mStore[day] = {};
+          if (val === "") delete mStore[day][eq];
+          else mStore[day][eq] = Number(val);
+        });
+      }
+      renderMonthGrid();
+      renderDailyEntry();
+      saveAppState();
+      showToast("CSV Imported", "#44cc88");
+    };
+    reader.readAsText(file);
+  }
+
+  // ==================== RENDER FUNCTIONS ====================
+  function renderMonthGrid() {
+    const head = $("monthHead");
+    const body = $("monthBody");
+    const { monthKey, daysInMonth } = getSelectedMonthInfo();
+    const DAYS = Math.min(daysInMonth, 31);
+    const mStore = ensureMonthStore(monthKey);
+
+    let h = `<tr><th class="sticky-left">Equipment</th>`;
+    for (let d=1; d<=DAYS; d++) h += `<th>${d}</th>`;
+    h += `<th class="total">Total</th></tr>`;
+    head.innerHTML = h;
 
     let bodyHtml = "";
-    equipmentGroups.forEach(g => {
-      bodyHtml += `<tr class="category-header"><td colspan="${DAYS+2}">${g.name}</td></tr>`;
-      g.items.forEach(eq => {
+    equipmentGroups.forEach(group => {
+      bodyHtml += `<tr class="category-header"><td colspan="${DAYS+2}">${group.name}</td></tr>`;
+      group.items.forEach(eq => {
         let total = 0, cells = "";
-        for(let d=1;d<=DAYS;d++) {
-          const v = mStore[d]?.[eq] || "";
-          total += Number(v)||0;
-          cells += `<td><input type="number" step="0.1" value="${v}" data-eq="${eq}" data-day="${d}"></td>`;
+        for (let d=1; d<=DAYS; d++) {
+          const val = mStore[d]?.[eq] ?? "";
+          total += Number(val)||0;
+          cells += `<td><input type="number" step="0.1" value="${val}" data-day="${d}" data-eq="${eq}"></td>`;
         }
         bodyHtml += `<tr><td class="sticky-left">${eq}</td>${cells}<td class="total">${total.toFixed(1)}</td></tr>`;
       });
     });
-    $("monthBody").innerHTML = bodyHtml;
+    body.innerHTML = bodyHtml;
+
+    body.querySelectorAll("input").forEach(inp => {
+      inp.addEventListener("input", () => {
+        const day = Number(inp.dataset.day);
+        const eq = inp.dataset.eq;
+        const val = inp.value === "" ? "" : Number(inp.value);
+        const mStore = ensureMonthStore(getSelectedMonthInfo().monthKey);
+        if (!mStore[day]) mStore[day] = {};
+        if (val === "" || isNaN(val)) delete mStore[day][eq];
+        else mStore[day][eq] = val;
+        saveAppState();
+      });
+    });
   }
 
   function renderDailyEntry() {
+    const body = $("dailyBody");
     const date = $("workDate").value || currentDate;
-    const {store} = getDayStore(date);
+    const { store: dayStore } = getDayStore(date);
     let html = "";
     equipmentGroups.forEach(group => {
       html += `<tr class="category-header"><td colspan="8">${group.name}</td></tr>`;
       group.items.forEach(eq => {
-        const worked = store[eq] || "";
-        const service = store[eq+"_hrService"] || "";
-        const sdate = store[eq+"_serviceDate"] || "";
-        const init = store[eq+"_initial"] || "";
-        const final = store[eq+"_final"] || "";
+        const worked = dayStore[eq] ?? "";
+        const service = dayStore[eq+"_hrService"] ?? "";
+        const sdate = dayStore[eq+"_serviceDate"] ?? "";
+        const init = dayStore[eq+"_initial"] ?? "";
+        const final = dayStore[eq+"_final"] ?? "";
         html += `
           <tr data-eq="${eq}">
             <td class="sticky-left">${eq}</td>
@@ -472,21 +579,24 @@
             <td><input type="date" value="${sdate}" class="hr-service-date"></td>
             <td><input type="number" step="0.1" value="${init}" class="initial"></td>
             <td><input type="number" step="0.1" value="${final}" class="final"></td>
-            <td class="worked">${(Number(final)-Number(init)||Number(worked)).toFixed(1)}</td>
+            <td class="worked">${(Number(final) - Number(init) || Number(worked)).toFixed(1)}</td>
             <td><button class="btn-delete" data-eq="${eq}">×</button></td>
           </tr>`;
       });
     });
-    $("dailyBody").innerHTML = html;
+    body.innerHTML = html;
   }
 
-  // Event Listeners
+  // ==================== AUTH & BUTTONS ====================
   window.addEventListener("firebase-ready", () => {
     fb().api.onAuthStateChanged(fb().auth, user => {
-      if(user) {
+      if (user) {
         $("loginRoot").style.display = "none";
         $("appRoot").style.display = "block";
-        loadAppState().then(() => { renderDailyEntry(); renderMonthGrid(); });
+        loadAppState().then(() => {
+          renderDailyEntry();
+          renderMonthGrid();
+        });
       } else {
         $("loginRoot").style.display = "flex";
         $("appRoot").style.display = "none";
@@ -496,10 +606,10 @@
     $("btnLogin").onclick = async () => {
       const email = $("loginEmail").value.trim();
       const pass = $("loginPass").value;
-      if(!email || !pass) return $("loginError").textContent = "Enter email and password";
+      if (!email || !pass) return $("loginError").textContent = "Enter email and password";
       try {
         await fb().api.signInWithEmailAndPassword(fb().auth, email, pass);
-      } catch { $("loginError").textContent = "Invalid login"; }
+      } catch { $("loginError").textContent = "Invalid email or password"; }
     };
 
     $("btnOpenRegister").onclick = () => $("registerModal").style.display = "flex";
@@ -507,12 +617,12 @@
     $("btnConfirmRegister").onclick = async () => {
       const email = $("regEmail").value.trim();
       const pass = $("regPass").value;
-      if(!email || pass.length < 6) return $("regMsg").textContent = "Enter valid email and password";
+      if (!email || pass.length < 6) return $("regMsg").textContent = "Valid email and min 6 char password required";
       try {
         await fb().api.createUserWithEmailAndPassword(fb().auth, email, pass);
         $("registerModal").style.display = "none";
-        $("loginError").textContent = "Account created! Login now.";
-      } catch { $("regMsg").textContent = "Registration failed"; }
+        $("loginError").textContent = "Account created successfully! Please login.";
+      } catch { $("regMsg").textContent = "Registration failed (email may be taken)"; }
     };
 
     $("btnOpenReset").onclick = () => {
@@ -522,23 +632,30 @@
     $("btnCancelReset").onclick = () => $("resetModal").style.display = "none";
     $("btnConfirmReset").onclick = async () => {
       const email = $("resetEmail").value.trim();
-      if(!email) return $("resetMsg").textContent = "Enter email";
+      if (!email) return $("resetMsg").textContent = "Enter email";
       try {
         await fb().api.sendPasswordResetEmail(fb().auth, email);
         $("resetMsg").style.color = "#44cc88";
-        $("resetMsg").textContent = "Reset link sent to your email!";
-      } catch { $("resetMsg").textContent = "Error sending link"; }
+        $("resetMsg").textContent = "Password reset link sent! Check your inbox.";
+      } catch { $("resetMsg").textContent = "Failed to send reset link"; }
     };
 
     $("btnLoadDay").onclick = () => { currentDate = $("workDate").value; renderDailyEntry(); renderMonthGrid(); };
     $("btnSaveDay").onclick = () => { saveAppState(); showToast("Day Saved"); };
     $("btnSaveAll").onclick = () => { saveAppState(); showToast("Saved to Cloud"); };
+    $("btnExportCSV").onclick = exportMonthlyCSV;
+    $("fileImportCSV").onchange = e => {
+      if (e.target.files[0]) importMonthlyCSV(e.target.files[0]);
+      e.target.value = "";
+    };
     $("btnSignOut").onclick = () => fb().api.signOut(fb().auth);
     $("btnAddEquipment").onclick = () => {
-      const name = prompt("New Equipment Name:");
-      if(name) {
-        equipmentGroups[0].items.push(name);
-        renderDailyEntry(); renderMonthGrid(); saveAppState();
+      const name = prompt("Enter new equipment name:");
+      if (name && name.trim()) {
+        equipmentGroups[0].items.push(name.trim());
+        renderDailyEntry();
+        renderMonthGrid();
+        saveAppState();
       }
     };
   });
