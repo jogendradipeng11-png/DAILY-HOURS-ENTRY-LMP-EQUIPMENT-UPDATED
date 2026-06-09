@@ -220,7 +220,7 @@
     <p class="login-subtitle">Please log in to access the Equipment Hours Log.</p>
 
     <div class="login-row">
-      <label for="loginUser">Username</label>
+      <label for="loginUser">Email</label>
       <input type="text" id="loginUser" autocomplete="username" placeholder="Enter username" />
     </div>
 
@@ -1310,7 +1310,7 @@ sendPasswordResetEmail
           remember ? api().browserLocalPersistence : api().browserSessionPersistence
         );
 
-        const email = unameToEmail(u);
+       const email = u;
         await api().signInWithEmailAndPassword(fb().auth, email, p);
 
         if (remember) localStorage.setItem(REMEMBER_USER_KEY, u);
