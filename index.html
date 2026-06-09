@@ -76,11 +76,12 @@
       <button class="link-btn" id="btnOpenRegister">Register user</button>
       <button class="link-btn" id="btnOpenReset">Forgot password?</button>
     </div>
+    <div class="small-note">Cloud mode: accounts and data are synced globally using Firebase.</div>
     <div id="loginError" class="login-error"></div>
   </div>
 </div>
 
-<!-- REGISTER & RESET MODALS -->
+<!-- REGISTER MODAL -->
 <div id="registerModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">Register New User</div>
@@ -94,10 +95,11 @@
   </div>
 </div>
 
+<!-- RESET MODAL -->
 <div id="resetModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">Reset Password</div>
-    <p style="color:#a0c0ff;">Password reset link will be sent to your email.</p>
+    <p style="margin-bottom:16px; color:#a0c0ff;">A password reset link will be sent to your email.</p>
     <label>Username:</label><input type="text" id="resetUser" style="margin:8px 0 12px;" />
     <div id="resetMsg" class="login-error"></div>
     <div class="modal-buttons">
@@ -111,7 +113,7 @@
 <div id="appRoot">
   <div class="card">
     <h1>Equipment Hours Log</h1>
-    <div class="flex" style="margin:16px 0; gap:12px;">
+    <div class="flex" style="margin:16px 0; align-items:center; flex-wrap:wrap; gap:12px;">
       <label><strong>Work Date:</strong></label>
       <input type="date" id="workDate" value="2026-06-09" />
       <button class="btn-primary" id="btnLoadDay">Load Day</button>
@@ -119,7 +121,7 @@
       <button class="btn-primary" id="btnSaveAll">Save (Last Modified)</button>
       <button class="btn-primary" id="btnAddEquipment">+ Add Equipment</button>
       <button class="btn-primary" id="btnExportCSV">Export Monthly CSV</button>
-      <label class="btn-primary" style="cursor:pointer;">Import Monthly CSV <input type="file" id="fileImportCSV" accept=".csv" style="display:none;" /></label>
+      <label class="btn-primary" style="cursor:pointer; margin:0;">Import Monthly CSV <input type="file" id="fileImportCSV" accept=".csv" style="display:none;" /></label>
       <button class="btn-danger" id="btnSignOut">Sign out</button>
     </div>
     <div id="toast" style="margin:12px 0; min-height:24px; color:#ffdd88;"></div>
@@ -144,7 +146,7 @@
   </div>
 </div>
 
-<!-- FIREBASE -->
+<!-- FIREBASE LOADER -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
   import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
@@ -164,12 +166,15 @@
   const auth = getAuth(app);
   const db = getDatabase(app);
 
-  window.__fb = { app, auth, db, api: { ref, get, set, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } };
+  window.__fb = {
+    app, auth, db,
+    api: { ref, get, set, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail }
+  };
   window.dispatchEvent(new Event("firebase-ready"));
 </script>
 
 <script>
-// ==================== FULL WORKING CODE ====================
+// ==================== FULL CODE WITH ALL FUNCTIONS ====================
 const equipmentGroups = [
   { name: "Generators", items: ["gen1", "gen2", "gen3", "gen4", "gen5"] },
   { name: "Compressors & Lighting", items: ["comp", "tower light"] }
@@ -207,13 +212,14 @@ async function loadAppState() {
     if (!state) return false;
 
     equipmentGroups.length = 0;
-    state.equipmentGroups?.forEach(g => {
+    if (state.equipmentGroups) state.equipmentGroups.forEach(g => {
       if (g && g.name && Array.isArray(g.items)) equipmentGroups.push({ name: g.name, items: [...g.items] });
     });
 
     monthData = state.monthData || {};
     currentDate = state.currentDate || currentDate;
-    $("workDate").value = currentDate;
+    const wd = $("workDate");
+    if (wd) wd.value = currentDate;
     return true;
   } catch { return false; }
 }
@@ -243,7 +249,6 @@ function nextISODate(dateStr) {
   return d.toISOString().slice(0, 10);
 }
 
-// Render Daily Entry
 function renderDailyEntry() {
   const body = $("dailyBody");
   const date = $("workDate").value || currentDate;
@@ -261,7 +266,7 @@ function renderDailyEntry() {
         <tr data-eq="${eq}">
           <td class="sticky-left">${eq}</td>
           <td>${date}</td>
-          <td><input type="number" step="0.1" class="hr-service"></td>
+          <td><input type="number" step="0.1" class="hr-service" value=""></td>
           <td><input type="date" class="hr-service-date"></td>
           <td><input type="number" step="0.1" value="${initial}" class="initial"></td>
           <td><input type="number" step="0.1" value="${final}" class="final"></td>
@@ -276,7 +281,7 @@ function renderDailyEntry() {
   body.innerHTML = html;
 }
 
-// FIXED Save (Last Modified) Button
+// FIXED Save (Last Modified) - This should now work correctly
 $("btnSaveAll").onclick = () => {
   const dateStr = $("workDate").value || currentDate;
   const { store: todayStore } = getDayStore(dateStr);
@@ -299,16 +304,124 @@ $("btnSaveAll").onclick = () => {
 
   saveAppState(true);
   showToast("Saved (Last Modified) + copied Final → next Initial (if empty)", "#44cc88");
-
   renderDailyEntry();
 };
 
-// Initial Render
+// Initialize
 renderDailyEntry();
 
-// Auth (basic)
-window.addEventListener("firebase-ready", () => {
-  // Auth logic can be added later if needed
+// Full Auth Logic
+(() => {
+  const REMEMBER_USER_KEY = "equipHoursRememberUser";
+  function api() { return window.__fb.api; }
+
+  function unameToEmail(username) {
+    const safe = (username || "").trim().toLowerCase().replace(/[^a-z0-9._-]/g, "_");
+    return `${safe}@equip-hours.local`;
+  }
+
+  function showLogin(message = "", color = "#ffdd88") {
+    document.getElementById("loginRoot").style.display = "flex";
+    document.getElementById("appRoot").style.display = "none";
+    const err = document.getElementById("loginError");
+    err.textContent = message;
+    err.style.color = color;
+  }
+
+  function showApp() {
+    document.getElementById("loginRoot").style.display = "none";
+    document.getElementById("appRoot").style.display = "block";
+    window.dispatchEvent(new CustomEvent("equipHours:userChanged"));
+  }
+
+  function initAuth() {
+    api().onAuthStateChanged(fb().auth, (user) => {
+      if (user) showApp();
+      else showLogin();
+    });
+
+    // Login
+    document.getElementById("btnLogin").onclick = async () => {
+      const u = document.getElementById("loginUser").value.trim();
+      const p = document.getElementById("loginPass").value;
+      const remember = document.getElementById("rememberMe").checked;
+      const msg = document.getElementById("loginError");
+      msg.textContent = "";
+      if (!u || !p) return msg.textContent = "Enter username and password.";
+      try {
+        await api().setPersistence(fb().auth, remember ? api().browserLocalPersistence : api().browserSessionPersistence);
+        const email = unameToEmail(u);
+        await api().signInWithEmailAndPassword(fb().auth, email, p);
+        if (remember) localStorage.setItem(REMEMBER_USER_KEY, u);
+        else localStorage.removeItem(REMEMBER_USER_KEY);
+        showApp();
+      } catch { msg.textContent = "Invalid username or password."; }
+    };
+
+    // Register
+    document.getElementById("btnOpenRegister").onclick = () => {
+      document.getElementById("regUser").value = "";
+      document.getElementById("regPass").value = "";
+      document.getElementById("regMsg").textContent = "";
+      document.getElementById("registerModal").style.display = "flex";
+    };
+    document.getElementById("btnCancelRegister").onclick = () => document.getElementById("registerModal").style.display = "none";
+    document.getElementById("btnConfirmRegister").onclick = async () => {
+      const u = document.getElementById("regUser").value.trim();
+      const p = document.getElementById("regPass").value;
+      const msg = document.getElementById("regMsg");
+      if (!u || u.length < 3) return msg.textContent = "Username too short.";
+      if (!p || p.length < 4) return msg.textContent = "Password too short.";
+      try {
+        const email = unameToEmail(u);
+        await api().createUserWithEmailAndPassword(fb().auth, email, p);
+        await api().signOut(fb().auth);
+        document.getElementById("registerModal").style.display = "none";
+        showLogin("Registration successful. Login now.", "#44cc88");
+      } catch { msg.textContent = "Registration failed."; }
+    };
+
+    // Reset Password
+    document.getElementById("btnOpenReset").onclick = () => {
+      document.getElementById("resetUser").value = "";
+      document.getElementById("resetMsg").textContent = "";
+      document.getElementById("resetModal").style.display = "flex";
+    };
+    document.getElementById("btnCancelReset").onclick = () => document.getElementById("resetModal").style.display = "none";
+    document.getElementById("btnConfirmReset").onclick = async () => {
+      const u = document.getElementById("resetUser").value.trim();
+      const msg = document.getElementById("resetMsg");
+      msg.textContent = "";
+      if (!u) return msg.textContent = "Enter username.";
+      try {
+        const email = unameToEmail(u);
+        await api().sendPasswordResetEmail(fb().auth, email);
+        msg.style.color = "#44cc88";
+        msg.textContent = "Reset link sent! Check your email.";
+        setTimeout(() => document.getElementById("resetModal").style.display = "none", 2500);
+      } catch { msg.textContent = "Failed to send reset link."; }
+    };
+
+    // Google Login
+    document.getElementById("btnGoogleLogin").onclick = async () => {
+      const msg = document.getElementById("loginError");
+      msg.textContent = "";
+      try {
+        const provider = new api().GoogleAuthProvider();
+        await api().signInWithPopup(fb().auth, provider);
+        showApp();
+      } catch { msg.textContent = "Google sign-in failed."; }
+    };
+  }
+
+  if (window.__fb && window.__fb.api) initAuth();
+  else window.addEventListener("firebase-ready", initAuth, { once: true });
+})();
+
+window.addEventListener("equipHours:userChanged", async () => {
+  const ok = await loadAppState();
+  renderDailyEntry();
+  showToast(ok ? "Loaded cloud data" : "No cloud data yet", ok ? "#a0c0ff" : "#ffaa44");
 });
 </script>
 </body>
