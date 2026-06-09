@@ -235,7 +235,7 @@
   </div>
 </div>
 
-<!-- REGISTER & RESET MODALS (unchanged) -->
+<!-- REGISTER MODAL -->
 <div id="registerModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">Register New User</div>
@@ -252,6 +252,7 @@
   </div>
 </div>
 
+<!-- RESET MODAL -->
 <div id="resetModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">Forgot Password</div>
@@ -532,7 +533,7 @@ function loadDay() {
   showToast("Day loaded", "#88ffaa");
 }
 
-// ==================== FULL CSV IMPORT ====================
+// ==================== FULL CSV IMPORT (FIXED) ====================
 function importMonthlyCSV(csvText) {
   const lines = csvText.trim().split("\n");
   if (lines.length < 2) return showToast("Invalid CSV file", "#ffaa44");
@@ -549,7 +550,6 @@ function importMonthlyCSV(csvText) {
     const eq = values[0];
     if (!eq) continue;
 
-    // Find day columns (numeric headers)
     for (let col = 1; col < headers.length; col++) {
       const header = headers[col];
       if (!isNaN(parseInt(header)) && parseInt(header) > 0) {
@@ -562,7 +562,6 @@ function importMonthlyCSV(csvText) {
       }
     }
 
-    // Service info (usually at the end)
     const serviceDateCol = headers.indexOf("Hr Service Date");
     const hrServiceCol = headers.indexOf("Hr Service");
     if (serviceDateCol !== -1 && values[serviceDateCol]) {
@@ -578,7 +577,8 @@ function importMonthlyCSV(csvText) {
   }
 
   saveAppState();
-  renderMonthGrid();
+  renderMonthGrid();        // Refresh grid
+  renderDailyEntry();       // Also refresh daily view
   showToast(`Successfully imported data for ${importedCount} equipment`, "#44cc88");
 }
 
@@ -605,21 +605,19 @@ function attachListeners() {
     showToast("Equipment added successfully", "#44cc88");
   };
 
-  // Full Import
   $("fileImportCSV").onchange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       importMonthlyCSV(ev.target.result);
-      e.target.value = ""; // reset input
+      e.target.value = "";
     };
     reader.readAsText(file);
   };
 
   $("btnExportCSV").onclick = exportMonthlyCSV;
 
-  // Live calculations
   document.addEventListener("input", (e) => {
     if (e.target.classList.contains("initial") || e.target.classList.contains("final")) {
       const row = e.target.closest("tr");
@@ -627,7 +625,6 @@ function attachListeners() {
     }
   });
 
-  // Auto-save month grid
   document.addEventListener("change", (e) => {
     if (e.target.tagName === "INPUT" && e.target.type === "number" && e.target.dataset.day) {
       const day = parseInt(e.target.dataset.day);
